@@ -8,6 +8,7 @@ const $ = (id) => document.getElementById(id);
 const els = {
   canvas: $("game"),
   hud: $("hud"),
+  hudDock: $("hudDock"),
   scoreVal: $("scoreVal"),
   comboVal: $("comboVal"),
   morphVal: $("morphVal"),
@@ -26,6 +27,12 @@ const els = {
   whatsappShare: $("whatsappShare"),
   menuBtn: $("menuBtn"),
   muteBtn: $("muteBtn"),
+  pauseBtn: $("pauseBtn"),
+  pauseOverlay: $("pauseOverlay"),
+  resumeBtn: $("resumeBtn"),
+  pauseMenuBtn: $("pauseMenuBtn"),
+  pauseHint: $("pauseHint"),
+  touchPad: $("touchPad"),
   bestVal: $("bestVal"),
   runsVal: $("runsVal"),
   finalScore: $("finalScore"),
@@ -48,12 +55,17 @@ const els = {
   presentedBy: $("presentedBy"),
   controlsHint: $("controlsHint"),
   hudHint: $("hudHint"),
+  howMorphHint: $("howMorphHint"),
+  howLaneHint: $("howLaneHint"),
   announcer: $("announcer"),
   boot: $("boot"),
   fatal: $("fatal"),
 };
 
 const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+const coarseMq = window.matchMedia("(pointer: coarse)");
+const fineMq = window.matchMedia("(pointer: fine)");
+const hoverMq = window.matchMedia("(hover: hover)");
 
 let runSponsor = pickSponsor();
 let touchStart = null;
@@ -67,10 +79,30 @@ let scoreAnim = 0;
 let activeScreen = "title";
 let lastRunScore = 0;
 let lastRunStats = { score: 0, distance: 0, combo: 1, isBest: false };
-let started = false;
+let userPaused = false;
+let hapticsOk = true;
+
+function prefersTouchControls() {
+  // Phones / tablets: coarse pointer, or touch without fine hover (many convertibles)
+  return coarseMq.matches || ("ontouchstart" in window && !hoverMq.matches);
+}
+
+function isTouchPrimary() {
+  return coarseMq.matches || ("ontouchstart" in window && !hoverMq.matches);
+}
+
+function haptic(ms = 12) {
+  if (!hapticsOk || reducedMotion || !navigator.vibrate) return;
+  try {
+    navigator.vibrate(ms);
+  } catch {
+    hapticsOk = false;
+  }
+}
 
 function currentShareStats() {
-  const score = lastRunStats.score || lastRunScore || (typeof game !== "undefined" && game?.snapshot ? game.snapshot().score : 0);
+  const score =
+    lastRunStats.score || lastRunScore || (typeof game !== "undefined" && game?.snapshot ? game.snapshot().score : 0);
   return { ...lastRunStats, score };
 }
 
@@ -101,7 +133,6 @@ async function doNativeShare() {
     return;
   }
   if (result.reason === "abort") return;
-  // Fallback to copy when native share missing or fails
   const copied = await shareScore.copy(stats);
   toast(copied.ok ? "Challenge copied — paste anywhere" : "Couldn't share");
 }
@@ -201,7 +232,9 @@ function pop(el, cls = "is-pop") {
 function updateFormPips(formId) {
   const pips = els.formTrack?.querySelectorAll(".form-pip") || [];
   pips.forEach((pip) => {
-    pip.classList.toggle("is-active", pip.dataset.form === formId);
+    const on = pip.dataset.form === formId;
+    pip.classList.toggle("is-active", on);
+    pip.setAttribute("aria-pressed", on ? "true" : "false");
   });
 }
 
@@ -263,15 +296,65 @@ function showHudHint() {
 }
 
 function syncControlsHint() {
-  const coarse = window.matchMedia("(pointer: coarse)").matches;
-  const fine = window.matchMedia("(pointer: fine)").matches;
-  if (coarse && !fine) {
-    els.controlsHint.textContent = "Tap to morph · Swipe left or right for lanes";
-    if (els.hudHint) els.hudHint.textContent = "Tap to morph · Swipe to lane";
+  const touch = isTouchPrimary();
+  const hybrid = coarseMq.matches && fineMq.matches;
+
+  if (touch || hybrid) {
+    els.controlsHint.textContent = hybrid
+      ? "Tap or Space to morph · Swipe / ← → for lanes"
+      : "Tap Morph · Swipe or use the lane pads";
+    if (els.hudHint) {
+      els.hudHint.textContent = hybrid ? "Tap / Space · Swipe or ← →" : "Morph button · Swipe lanes";
+    }
+    if (els.howMorphHint) els.howMorphHint.textContent = "Tap Morph (or Space) to cycle Slim, Wide, Orb";
+    if (els.howLaneHint) els.howLaneHint.textContent = "Swipe or tap ‹ › to slip past light";
+    game.setPauseHint("Tap Continue or press Space");
+    if (els.pauseHint) els.pauseHint.textContent = "Run paused — continue when ready";
   } else {
     els.controlsHint.textContent = "Space to morph · ← → or A D for lanes";
-    if (els.hudHint) els.hudHint.textContent = "Space morph · ← → lanes";
+    if (els.hudHint) els.hudHint.textContent = "Space morph · ← → lanes · Esc pause";
+    if (els.howMorphHint) els.howMorphHint.textContent = "Press Space / W to cycle Slim, Wide, Orb";
+    if (els.howLaneHint) els.howLaneHint.textContent = "Use ← → or A D to slip past light";
+    game.setPauseHint("Press Space or click Continue");
+    if (els.pauseHint) els.pauseHint.textContent = "Space / P to continue · Esc for menu";
   }
+}
+
+function syncTouchPadVisibility() {
+  const show = prefersTouchControls() && game.state === "playing" && !game.paused;
+  // Keep pad mounted during pause so dock height stays stable, but disable hits
+  const mount = prefersTouchControls() && game.state === "playing";
+  document.body.classList.toggle("has-touch-pad", mount);
+  setHidden(els.touchPad, !mount);
+  if (els.touchPad) {
+    els.touchPad.toggleAttribute("inert", !show);
+    els.touchPad.style.pointerEvents = show ? "auto" : "none";
+    els.touchPad.style.opacity = show ? "" : mount ? "0.35" : "";
+  }
+  if (els.pauseBtn) {
+    const pauseVisible = game.state === "playing";
+    els.pauseBtn.hidden = !pauseVisible;
+    els.pauseBtn.toggleAttribute("hidden", !pauseVisible);
+  }
+  measureDock();
+}
+
+function measureDock() {
+  if (!game?.ok) return;
+  const dock = els.hudDock;
+  const pad = els.touchPad;
+  let reserve = 0;
+  if (dock && !els.hud?.classList.contains("is-hidden")) {
+    const r = dock.getBoundingClientRect();
+    reserve = Math.max(reserve, window.innerHeight - r.top + 12);
+  }
+  if (pad && !pad.classList.contains("is-hidden")) {
+    const r = pad.getBoundingClientRect();
+    reserve = Math.max(reserve, window.innerHeight - r.top + 10);
+  }
+  // Always leave room for home indicator / chrome
+  reserve = Math.max(reserve, Math.min(130, window.innerHeight * 0.16));
+  game.setDockReserve(reserve);
 }
 
 /** Scale the wide Syne wordmark so it never clips the viewport. */
@@ -281,7 +364,6 @@ function fitBrand() {
   if (!text || !wrap) return;
 
   text.style.transform = "scale(1)";
-  // Leave room for mute / safe insets on small phones
   const sidePad = window.matchMedia("(max-width: 720px)").matches ? 24 : 8;
   const avail = Math.max(0, wrap.clientWidth - sidePad);
   const need = text.scrollWidth;
@@ -300,33 +382,81 @@ function applyMute(muted, { persist = true } = {}) {
   if (persist) storage.setMuted(muted);
 }
 
+function setPauseUI(paused, { fromSystem = false } = {}) {
+  if (paused) {
+    game.setPaused(true);
+    setHidden(els.pauseOverlay, false);
+    syncTouchPadVisibility();
+    if (els.resumeBtn) {
+      requestAnimationFrame(() => els.resumeBtn.focus({ preventScroll: true }));
+    }
+    announce(fromSystem ? "Game paused. Continue when ready." : "Paused.");
+  } else {
+    userPaused = false;
+    game.setPaused(false);
+    setHidden(els.pauseOverlay, true);
+    game.resize();
+    measureDock();
+    syncTouchPadVisibility();
+  }
+}
+
+function pauseGame({ fromSystem = false } = {}) {
+  if (game.state !== "playing" || game.paused) return;
+  userPaused = !fromSystem;
+  setPauseUI(true, { fromSystem });
+}
+
+function resumeGame() {
+  if (game.state !== "playing" || !game.paused) return;
+  game.audio.resume();
+  setPauseUI(false);
+  toast("Back in the night");
+  announce("Run resumed.");
+}
+
 function goTitle() {
+  userPaused = false;
   game.setPaused(false);
+  setHidden(els.pauseOverlay, true);
   setHidden(els.hud, true);
   setHidden(els.sponsorChip, true);
   setHidden(els.toast, true);
+  setHidden(els.touchPad, true);
+  document.body.classList.remove("has-touch-pad");
+  if (els.pauseBtn) {
+    els.pauseBtn.hidden = true;
+    els.pauseBtn.toggleAttribute("hidden", true);
+  }
   setScreen("title");
   setSponsorUI(pickSponsor(Date.now() + SPONSORS.length));
   refreshTitleStats();
   game.state = "idle";
+  measureDock();
   announce("Title screen. Enter the night to play.");
   requestAnimationFrame(() => fitBrand());
 }
 
 function beginPlay() {
+  userPaused = false;
   setScreen("none");
   setHidden(els.hud, false);
   setHidden(els.toast, true);
+  setHidden(els.pauseOverlay, true);
   setSponsorUI(pickSponsor(Date.now()));
   game.setPaused(false);
   game.audio.resume();
   game.start(runSponsor);
-  started = true;
   lastScore = 0;
   lastCombo = 1;
   lastRunScore = 0;
   updateHud(game.snapshot(), { force: true });
   updateFormPips(game.snapshot().form.id);
+  syncTouchPadVisibility();
+  requestAnimationFrame(() => {
+    measureDock();
+    game.resize();
+  });
   showSponsorChip();
   showHudHint();
   announce("Run started. Morph to match gates. Avoid light beams.");
@@ -365,6 +495,10 @@ const game = new Game(els.canvas, {
   },
   onMorph(snap) {
     updateHud(snap);
+    haptic(10);
+  },
+  onLane() {
+    haptic(8);
   },
   onScore(snap) {
     updateHud(snap);
@@ -372,8 +506,12 @@ const game = new Game(els.canvas, {
   onCombo(snap) {
     updateHud(snap);
     if (snap.combo >= 4) toast(`Combo ×${snap.combo}`);
+    haptic([8, 30, 12]);
   },
   onGameOver(snap) {
+    haptic([30, 40, 50]);
+    userPaused = false;
+    setHidden(els.pauseOverlay, true);
     updateHud(snap, { force: true });
     const prevBest = storage.get().best;
     storage.addRun(snap.score, snap.distance);
@@ -398,6 +536,12 @@ const game = new Game(els.canvas, {
 
     setHidden(els.hud, true);
     setHidden(els.sponsorChip, true);
+    setHidden(els.touchPad, true);
+    document.body.classList.remove("has-touch-pad");
+    if (els.pauseBtn) {
+      els.pauseBtn.hidden = true;
+      els.pauseBtn.toggleAttribute("hidden", true);
+    }
     setScreen("over");
     refreshTitleStats();
     announce(
@@ -431,6 +575,18 @@ els.muteBtn.addEventListener("click", () => {
   toast(game.audio.muted ? "Sound off" : "Sound on");
 });
 
+els.pauseBtn?.addEventListener("click", () => {
+  if (game.state === "playing" && !game.paused) pauseGame();
+});
+
+els.resumeBtn?.addEventListener("click", () => {
+  resumeGame();
+});
+
+els.pauseMenuBtn?.addEventListener("click", () => {
+  goTitle();
+});
+
 els.shareBtn.addEventListener("click", () => {
   doNativeShare();
 });
@@ -447,6 +603,26 @@ els.whatsappShare?.addEventListener("click", () => {
   syncShareLinks(currentShareStats());
 });
 
+els.formTrack?.addEventListener("click", (e) => {
+  const pip = e.target.closest?.(".form-pip");
+  if (!pip || game.state !== "playing" || game.paused) return;
+  e.preventDefault();
+  game.morph(pip.dataset.form);
+});
+
+els.touchPad?.addEventListener("pointerdown", (e) => {
+  const btn = e.target.closest?.(".touch-btn");
+  if (!btn || game.state !== "playing" || game.paused) return;
+  e.preventDefault();
+  e.stopPropagation();
+  const lane = btn.dataset.lane;
+  if (lane != null) {
+    game.shiftLane(Number(lane));
+    return;
+  }
+  if (btn.dataset.morph) game.morph();
+});
+
 function isUiTarget(t) {
   return (
     t instanceof HTMLElement &&
@@ -454,6 +630,8 @@ function isUiTarget(t) {
       t.closest("a") ||
       t.closest(".panel") ||
       t.closest(".screen.is-active") ||
+      t.closest("#pauseOverlay") ||
+      t.closest("#touchPad") ||
       t.closest("#fatal") ||
       t.closest("#boot"))
   );
@@ -466,10 +644,24 @@ window.addEventListener("keydown", (e) => {
   const onControl = tag === "BUTTON" || tag === "A" || tag === "INPUT" || tag === "TEXTAREA";
 
   if (e.code === "Escape") {
-    if (activeScreen === "over" || activeScreen === "how") {
-      e.preventDefault();
-      goTitle();
+    e.preventDefault();
+    if (game.state === "playing") {
+      if (game.paused) {
+        // Second Esc from pause returns to title
+        goTitle();
+      } else {
+        pauseGame();
+      }
+      return;
     }
+    if (activeScreen === "over" || activeScreen === "how") goTitle();
+    return;
+  }
+
+  if (e.code === "KeyP" && !onControl && game.state === "playing") {
+    e.preventDefault();
+    if (game.paused) resumeGame();
+    else pauseGame();
     return;
   }
 
@@ -486,7 +678,10 @@ window.addEventListener("keydown", (e) => {
 
     if (game.state === "playing") {
       if (e.code === "Enter") return;
-      if (game.paused) return;
+      if (game.paused) {
+        resumeGame();
+        return;
+      }
       game.morph();
       return;
     }
@@ -504,14 +699,27 @@ window.addEventListener("keydown", (e) => {
 });
 
 function swipeThreshold() {
-  return Math.max(28, Math.min(56, window.innerWidth * 0.07));
+  return Math.max(24, Math.min(52, window.innerWidth * 0.065));
 }
 
 function onPlayPointerDown(e) {
-  if (game.state !== "playing" || game.paused) return;
+  if (game.state !== "playing") return;
+  if (game.paused) {
+    // Tap anywhere (non-UI) resumes — mobile-friendly
+    if (!isUiTarget(e.target)) resumeGame();
+    return;
+  }
   if (isUiTarget(e.target)) return;
   if (e.isPrimary === false) return;
-  touchStart = { x: e.clientX, y: e.clientY, t: performance.now(), id: e.pointerId };
+  // Mouse on fine pointers: only left button; avoid accidental lane drags from hover tools
+  if (e.pointerType === "mouse" && e.button !== 0) return;
+  touchStart = {
+    x: e.clientX,
+    y: e.clientY,
+    t: performance.now(),
+    id: e.pointerId,
+    type: e.pointerType || "unknown",
+  };
   try {
     e.currentTarget.setPointerCapture?.(e.pointerId);
   } catch {
@@ -525,6 +733,7 @@ function onPlayPointerUp(e) {
   const dx = e.clientX - touchStart.x;
   const dy = e.clientY - touchStart.y;
   const dt = performance.now() - touchStart.t;
+  const pointerType = touchStart.type;
   touchStart = null;
   try {
     e.currentTarget.releasePointerCapture?.(e.pointerId);
@@ -533,12 +742,23 @@ function onPlayPointerUp(e) {
   }
 
   const swipe = swipeThreshold();
-  if (Math.abs(dx) > swipe && Math.abs(dx) > Math.abs(dy) * 1.05) {
+  const absX = Math.abs(dx);
+  const absY = Math.abs(dy);
+
+  // Prefer clear horizontal intent; ignore mushy diagonals
+  if (absX > swipe && absX > absY * 1.2) {
     game.shiftLane(dx < 0 ? -1 : 1);
     return;
   }
-  // Tap / light flick = morph
-  if (Math.abs(dx) < swipe * 0.7 && Math.abs(dy) < swipe * 0.7 && dt < 450) {
+
+  // Desktop mouse: click = morph; require near-stationary click (no drag morph)
+  if (pointerType === "mouse") {
+    if (absX < 10 && absY < 10 && dt < 400) game.morph();
+    return;
+  }
+
+  // Touch / pen: tap / light flick = morph
+  if (absX < swipe * 0.75 && absY < swipe * 0.75 && dt < 420) {
     game.morph();
   }
 }
@@ -554,7 +774,6 @@ playSurface.addEventListener(
   { passive: true }
 );
 
-// Stop iOS rubber-band / pull-to-refresh during play
 document.addEventListener(
   "touchmove",
   (e) => {
@@ -571,18 +790,19 @@ document.addEventListener("contextmenu", (e) => {
 
 document.addEventListener("visibilitychange", () => {
   if (document.hidden) {
-    if (game.state === "playing") game.setPaused(true);
-  } else if (game.state === "playing" && game.paused) {
-    game.setPaused(false);
-    game.resize();
-    toast("Back in the night");
+    if (game.state === "playing" && !game.paused) {
+      pauseGame({ fromSystem: true });
+    }
   }
+  // Do not auto-resume — player taps Continue (safer mid-obstacle on phones)
 });
 
 function onViewportChange() {
   syncControlsHint();
+  syncTouchPadVisibility();
   fitBrand();
   game.resize();
+  measureDock();
 }
 
 window.addEventListener("resize", onViewportChange);
@@ -595,6 +815,9 @@ if (window.visualViewport) {
   window.visualViewport.addEventListener("resize", onViewportChange);
   window.visualViewport.addEventListener("scroll", onViewportChange);
 }
+
+coarseMq.addEventListener?.("change", onViewportChange);
+fineMq.addEventListener?.("change", onViewportChange);
 
 syncControlsHint();
 fitBrand();
@@ -629,8 +852,10 @@ async function finishBoot() {
   }
   document.body.classList.add("is-ready");
   setHidden(els.boot, true);
-  requestAnimationFrame(() => fitBrand());
+  requestAnimationFrame(() => {
+    fitBrand();
+    measureDock();
+  });
 }
 
 finishBoot();
-void started;

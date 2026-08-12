@@ -21,15 +21,19 @@ python -m http.server 8080
 
 ## How to play
 
-- **Tap / Space** — cycle Slim → Wide → Orb
-- **Swipe / ← →** — change lanes
+- **Tap / Morph pad / Space** — cycle Slim → Wide → Orb (form pips jump to a shape)
+- **Swipe / lane pads / ← →** — change lanes
 - Match **gates**, dodge **beams**, collect orbs, chain combos
-- **M** mute · **Esc** back to menu · tab blur auto-pauses
+- **M** mute · **P / Esc** pause · **Space** resume · Esc again from pause returns to menu
+- Tab / app blur auto-pauses; tap **Continue** when ready (no surprise mid-obstacle resume)
 
 ## Production notes
 
-- Adaptive quality when FPS dips
-- Visibility pause + forgiving collisions
+- Adaptive quality when FPS dips (DPR retunes with quality)
+- Visibility pause + manual pause overlay (desktop & mobile)
+- On-screen touch pad on coarse pointers; keyboard-first on desktop
+- Opening invulnerability + brief near-miss grace
+- Dock-aware player Y (HUD / home indicator / touch pad)
 - Sanitized localStorage (`js/storage.js`)
 - Mute persists with player prefs
 - Web app manifest + deploy headers (`_headers` for Netlify)

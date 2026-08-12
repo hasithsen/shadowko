@@ -12,7 +12,7 @@ $listener.Prefixes.Add($prefix)
 try {
   $listener.Start()
 } catch {
-  Write-Host "Could not bind $prefix — is the port in use?" -ForegroundColor Red
+  Write-Host "Could not bind $prefix - is the port in use?" -ForegroundColor Red
   throw
 }
 
@@ -36,14 +36,27 @@ $mime = @{
   ".txt"  = "text/plain; charset=utf-8"
 }
 
-function Send-Bytes([System.Net.HttpListenerResponse]$res, [int]$status, [string]$contentType, [byte[]]$bytes) {
-  $res.StatusCode = $status
-  $res.ContentType = $contentType
-  $res.Headers["X-Content-Type-Options"] = "nosniff"
-  $res.Headers["Cache-Control"] = if ($contentType -like "text/html*") { "no-cache" } else { "public, max-age=60" }
-  $res.ContentLength64 = $bytes.LongLength
-  $res.OutputStream.Write($bytes, 0, $bytes.Length)
-  $res.Close()
+function Send-Bytes {
+  param(
+    [System.Net.HttpListenerResponse]$Response,
+    [int]$Status,
+    [string]$ContentType,
+    [byte[]]$Bytes
+  )
+
+  $Response.StatusCode = $Status
+  $Response.ContentType = $ContentType
+  $Response.Headers["X-Content-Type-Options"] = "nosniff"
+
+  if ($ContentType -like "text/html*") {
+    $Response.Headers["Cache-Control"] = "no-cache"
+  } else {
+    $Response.Headers["Cache-Control"] = 'public, max-age=60'
+  }
+
+  $Response.ContentLength64 = $Bytes.LongLength
+  $Response.OutputStream.Write($Bytes, 0, $Bytes.Length)
+  $Response.Close()
 }
 
 try {
@@ -61,21 +74,21 @@ try {
       $rootPrefix = $root.TrimEnd("\", "/") + [System.IO.Path]::DirectorySeparatorChar
       if (-not ($full.Equals($root, [System.StringComparison]::OrdinalIgnoreCase) -or
                 $full.StartsWith($rootPrefix, [System.StringComparison]::OrdinalIgnoreCase))) {
-        Send-Bytes $res 403 "text/plain; charset=utf-8" ([Text.Encoding]::UTF8.GetBytes("Forbidden"))
+        Send-Bytes -Response $res -Status 403 -ContentType "text/plain; charset=utf-8" -Bytes ([Text.Encoding]::UTF8.GetBytes("Forbidden"))
         continue
       }
 
       if (-not (Test-Path -LiteralPath $full -PathType Leaf)) {
-        Send-Bytes $res 404 "text/plain; charset=utf-8" ([Text.Encoding]::UTF8.GetBytes("Not found"))
+        Send-Bytes -Response $res -Status 404 -ContentType "text/plain; charset=utf-8" -Bytes ([Text.Encoding]::UTF8.GetBytes("Not found"))
         continue
       }
 
       $ext = [System.IO.Path]::GetExtension($full).ToLowerInvariant()
       $type = if ($mime.ContainsKey($ext)) { $mime[$ext] } else { "application/octet-stream" }
-      Send-Bytes $res 200 $type ([System.IO.File]::ReadAllBytes($full))
+      Send-Bytes -Response $res -Status 200 -ContentType $type -Bytes ([System.IO.File]::ReadAllBytes($full))
     } catch {
       try {
-        Send-Bytes $res 500 "text/plain; charset=utf-8" ([Text.Encoding]::UTF8.GetBytes("Server error"))
+        Send-Bytes -Response $res -Status 500 -ContentType "text/plain; charset=utf-8" -Bytes ([Text.Encoding]::UTF8.GetBytes("Server error"))
       } catch { }
     }
   }

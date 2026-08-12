@@ -90,10 +90,14 @@ export class Game {
     this.hitstop = 0;
     this.sponsor = pickSponsor();
     this.paused = false;
+    this.pauseHint = "Tap or press Space to continue";
     this.quality = 1;
     this.fpsEma = 60;
     this.tickAcc = 0;
     this.reducedMotion = false;
+    this.dockReserve = 0;
+    this._needsResize = false;
+    this._lastDprCap = 2;
 
     this._onResize = () => this.resize();
     this._loop = (ts) => this.frame(ts);
@@ -119,6 +123,20 @@ export class Game {
     this.reducedMotion = !!on;
   }
 
+  /** External UI measures HUD / touch pad height so the silhouette stays clear. */
+  setDockReserve(px) {
+    const next = Math.max(0, Number(px) || 0);
+    if (Math.abs(next - this.dockReserve) < 1) return;
+    this.dockReserve = next;
+    this.layoutPlayer();
+    if (this.paused && this.state === "playing") this.render();
+  }
+
+  setPauseHint(text) {
+    this.pauseHint = text || "Tap or press Space to continue";
+    if (this.paused && this.state === "playing") this.render();
+  }
+
   freshPlayer() {
     return {
       lane: 1,
@@ -132,10 +150,22 @@ export class Game {
     };
   }
 
+  /** Keep silhouette above HUD dock / home indicator / on-screen controls. */
+  layoutPlayer() {
+    if (!this.w || !this.h) return;
+    const fallback = Math.min(120, this.h * 0.18);
+    const reserve = Math.max(this.dockReserve || 0, fallback);
+    this.player.y = Math.min(this.roadTop + this.roadH * 0.72, this.h - reserve);
+    this.syncLanes(this.player.y);
+    this.player.x = this.laneX[this.player.lane];
+  }
+
   resize() {
     if (!this.ok) return;
     const rect = this.canvas.getBoundingClientRect();
-    const nextDpr = Math.min(window.devicePixelRatio || 1, this.quality < 0.75 ? 1.25 : 2);
+    const dprCap = this.quality < 0.75 ? 1.25 : 2;
+    this._lastDprCap = dprCap;
+    const nextDpr = Math.min(window.devicePixelRatio || 1, dprCap);
     this.dpr = nextDpr;
     this.w = Math.max(1, rect.width);
     this.h = Math.max(1, rect.height);
@@ -145,16 +175,12 @@ export class Game {
 
     const short = this.h < 640;
     const landscape = this.w > this.h && this.h < 500;
-    this.roadTop = this.h * (landscape ? 0.18 : short ? 0.22 : 0.28);
-    this.roadH = this.h * (landscape ? 0.7 : short ? 0.62 : 0.58);
-    // Keep player above mobile HUD dock / home indicator
-    const dockReserve = Math.min(110, this.h * 0.16);
-    this.player.y = Math.min(
-      this.roadTop + this.roadH * 0.72,
-      this.h - dockReserve
-    );
-    this.syncLanes(this.player.y);
-    this.player.x = this.laneX[this.player.lane];
+    this.roadTop = this.h * (landscape ? 0.16 : short ? 0.2 : 0.28);
+    this.roadH = this.h * (landscape ? 0.72 : short ? 0.64 : 0.58);
+    this.layoutPlayer();
+
+    // Orientation / chrome changes while paused must still refresh the frame
+    if (this.paused && this.state === "playing") this.render();
   }
 
   laneCentersAt(y) {
@@ -223,11 +249,12 @@ export class Game {
     this.floaters = [];
     this.billboards = [];
     this.player = this.freshPlayer();
-    this.syncLanes(this.player.y);
+    this.layoutPlayer();
     this.player.x = this.laneX[1];
-    const dockReserve = Math.min(110, this.h * 0.16);
-    this.player.y = Math.min(this.roadTop + this.roadH * 0.72, this.h - dockReserve);
-    this.baseSpeed = Math.min(this.w, 420) * (this.w < 420 ? 0.48 : 0.52);
+    // Opening grace — learn the rhythm before the first lethal hit
+    this.player.invuln = 1.35;
+    const mobileFeel = this.w < 480 || (this.w < this.h && this.w < 900);
+    this.baseSpeed = Math.min(this.w, 420) * (mobileFeel ? 0.46 : 0.52);
     this.speed = this.baseSpeed;
     this.shake = 0;
     this.flash = 0;
@@ -257,9 +284,18 @@ export class Game {
     };
   }
 
-  morph() {
+  morph(toForm) {
     if (this.state !== "playing" || this.paused) return;
-    this.player.form = (this.player.form + 1) % FORMS.length;
+    if (typeof toForm === "number" && toForm >= 0 && toForm < FORMS.length) {
+      if (this.player.form === toForm) return;
+      this.player.form = toForm;
+    } else if (typeof toForm === "string") {
+      const idx = FORMS.findIndex((f) => f.id === toForm);
+      if (idx < 0 || this.player.form === idx) return;
+      this.player.form = idx;
+    } else {
+      this.player.form = (this.player.form + 1) % FORMS.length;
+    }
     this.audio.morph();
     this.burst(this.player.x, this.player.y - 30, this.sponsor.color, 8);
     this.hooks.onMorph?.(this.snapshot());
@@ -271,6 +307,7 @@ export class Game {
     if (next === this.player.targetLane) return;
     this.player.targetLane = next;
     this.audio.lane();
+    this.hooks.onLane?.(this.snapshot(), dir);
   }
 
   gameOver(reason = "light") {
@@ -572,6 +609,8 @@ export class Game {
             this.bumpCombo();
             this.addScore(20, true);
             this.floatText(box.cx, box.cy, "NEAR", "#2fd6c0");
+            // Brief grace after a near-miss — rewards commitment without soft-locking
+            this.player.invuln = Math.max(this.player.invuln, 0.28);
           }
         }
       }
@@ -588,6 +627,7 @@ export class Game {
           e.passed = true;
           if (!inLane && Math.abs(e.lane - laneNow) === 1) {
             this.addScore(15, true);
+            this.player.invuln = Math.max(this.player.invuln, 0.2);
           }
         }
       }
@@ -814,6 +854,10 @@ export class Game {
 
     ctx.save();
     ctx.translate(0, bob);
+    // Opening / near-miss grace: soft pulse so players feel the shield
+    if (this.player.invuln > 0 && !this.reducedMotion) {
+      ctx.globalAlpha = 0.55 + 0.45 * Math.abs(Math.sin(this.time * 14));
+    }
     ctx.fillStyle = "#0a0b10";
     ctx.strokeStyle = color;
     ctx.lineWidth = 2.5;
@@ -900,15 +944,15 @@ export class Game {
   drawPaused() {
     if (!this.paused || this.state !== "playing") return;
     const { ctx, w, h } = this;
-    ctx.fillStyle = "rgba(5,6,10,0.45)";
+    ctx.fillStyle = "rgba(5,6,10,0.52)";
     ctx.fillRect(0, 0, w, h);
-    ctx.fillStyle = "rgba(242,239,230,0.9)";
+    ctx.fillStyle = "rgba(242,239,230,0.92)";
     ctx.font = "700 18px Outfit, sans-serif";
     ctx.textAlign = "center";
-    ctx.fillText("PAUSED", w / 2, h * 0.48);
+    ctx.fillText("PAUSED", w / 2, h * 0.46);
     ctx.font = "500 13px Outfit, sans-serif";
-    ctx.fillStyle = "rgba(242,239,230,0.55)";
-    ctx.fillText("Return to the tab to continue", w / 2, h * 0.48 + 28);
+    ctx.fillStyle = "rgba(242,239,230,0.58)";
+    ctx.fillText(this.pauseHint || "Tap or press Space to continue", w / 2, h * 0.46 + 28);
   }
 
   render() {
@@ -943,13 +987,23 @@ export class Game {
     if (dt <= 0) return;
     const fps = 1 / dt;
     this.fpsEma = this.fpsEma * 0.9 + fps * 0.1;
+    const prev = this.quality;
     if (this.fpsEma < 45) this.quality = Math.max(0.45, this.quality - 0.02);
     else if (this.fpsEma > 56) this.quality = Math.min(1, this.quality + 0.01);
+    // Retune DPR when quality crosses the soft-cap threshold
+    const nextCap = this.quality < 0.75 ? 1.25 : 2;
+    if (nextCap !== this._lastDprCap || Math.abs(prev - this.quality) > 0.05) {
+      this._needsResize = true;
+    }
   }
 
   frame(ts) {
-    // Keep the rAF heartbeat while paused, but skip work to save battery
+    // Keep the rAF heartbeat while paused; refresh if chrome changed
     if (this.paused && this.state === "playing") {
+      if (this._needsResize) {
+        this._needsResize = false;
+        this.resize();
+      }
       this.raf = requestAnimationFrame(this._loop);
       return;
     }
@@ -960,6 +1014,10 @@ export class Game {
     dt = Math.min(0.033, Math.max(0, dt));
     this.dt = dt;
     this.adaptQuality(dt);
+    if (this._needsResize) {
+      this._needsResize = false;
+      this.resize();
+    }
     this.update(dt);
     this.render();
     this.raf = requestAnimationFrame(this._loop);
