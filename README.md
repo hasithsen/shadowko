@@ -37,15 +37,13 @@ python -m http.server 8080
 
 ## Sponsors
 
-Edit `js/sponsors.js`:
+Inventory pitches live in `js/sponsors.js` — creatives invite partners to place their brand on title, HUD, billboards, and share cards. Tap the sponsorship pill to inquire (`SPONSOR_INQUIRY_URL`).
+
+When a deal closes, replace a slot with the live kit:
 
 ```js
-export const SPONSORS = [
-  { id: "acme", name: "ACME", tagline: "Your line", color: "#f0a020", accent: "#ffc857" },
-];
+{ id: "acme", name: "ACME", tagline: "Your line", kicker: "Presented by", color: "#f0a020", accent: "#ffc857" }
 ```
-
-Surfaces: title pill, HUD chip, in-world billboards, game-over card, share text.
 
 ## Deploy
 

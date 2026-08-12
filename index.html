@@ -2,12 +2,15 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover, user-scalable=no" />
   <meta name="theme-color" content="#07080c" />
   <meta name="color-scheme" content="dark" />
-  <meta name="description" content="SHADOWKO — Master the dark. Outrun the light. An addictive silhouette runner built for the night." />
+  <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="SHADOWKO" />
+  <meta name="format-detection" content="telephone=no" />
+  <meta name="description" content="SHADOWKO — Master the dark. Outrun the light. An addictive silhouette runner built for the night." />
   <meta property="og:title" content="SHADOWKO" />
   <meta property="og:description" content="Morph. Dash. Survive the light. How far can your shadow go?" />
   <meta property="og:type" content="website" />
@@ -47,8 +50,8 @@
       </div>
 
       <div id="sponsorChip" class="sponsor-chip is-hidden" hidden>
-        <span class="sponsor-chip-kicker">Spotlit by</span>
-        <span id="sponsorChipName">—</span>
+        <span class="sponsor-chip-kicker" id="sponsorChipKicker">Open for sponsors</span>
+        <span id="sponsorChipName">YOUR BRAND HERE</span>
       </div>
 
       <div class="hud-dock" aria-live="polite">
@@ -85,7 +88,7 @@
       <div class="screen-bg" aria-hidden="true"></div>
       <div class="screen-veil" aria-hidden="true"></div>
       <div class="title-wrap">
-        <p class="eyebrow" id="presentedBy">A night market experience</p>
+        <p class="eyebrow" id="presentedBy">Open for brand partners</p>
         <h1 class="brand"><span class="brand-text">SHADOWKO</span></h1>
         <p class="tagline">Master the dark. Outrun the light.</p>
         <div class="title-cta">
@@ -108,10 +111,15 @@
         </div>
       </div>
       <footer class="title-foot">
-        <div id="titleSponsor" class="sponsor-pill">
-          <span class="sponsor-kicker">Presented with</span>
-          <span id="titleSponsorName" class="sponsor-name">Shadowko Partners</span>
-        </div>
+        <a
+          id="titleSponsor"
+          class="sponsor-pill sponsor-pill--link"
+          href="mailto:sponsors@shadowko.com?subject=SHADOWKO%20Sponsorship"
+        >
+          <span class="sponsor-kicker" id="titleSponsorKicker">Sponsorship available</span>
+          <span id="titleSponsorName" class="sponsor-name">YOUR BRAND HERE</span>
+          <span class="sponsor-sub" id="titleSponsorTag">Put your logo on title, HUD &amp; billboards</span>
+        </a>
       </footer>
     </section>
 
@@ -191,10 +199,15 @@
             <span class="stat-value" id="overBestVal">0</span>
           </div>
         </div>
-        <div id="overSponsor" class="sponsor-pill over-sponsor">
-          <span class="sponsor-kicker">This run spotlit by</span>
-          <span id="overSponsorName" class="sponsor-name">—</span>
-        </div>
+        <a
+          id="overSponsor"
+          class="sponsor-pill over-sponsor sponsor-pill--link"
+          href="mailto:sponsors@shadowko.com?subject=SHADOWKO%20Sponsorship"
+        >
+          <span class="sponsor-kicker" id="overSponsorKicker">This placement could be yours</span>
+          <span id="overSponsorName" class="sponsor-name">YOUR BRAND HERE</span>
+          <span class="sponsor-sub" id="overSponsorTag">Sponsor SHADOWKO — reach every run</span>
+        </a>
         <div class="share-block" aria-label="Share your score">
           <p class="share-prompt" id="sharePrompt">Challenge a friend to beat your run</p>
           <button id="shareBtn" class="btn btn-share btn-block" type="button">

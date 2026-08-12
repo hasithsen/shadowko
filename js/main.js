@@ -1,6 +1,6 @@
 import { Game } from "./game.js";
 import { storage } from "./storage.js";
-import { pickSponsor, SPONSORS } from "./sponsors.js";
+import { pickSponsor, SPONSORS, SPONSOR_INQUIRY_URL } from "./sponsors.js";
 import { shareScore } from "./share.js";
 
 const $ = (id) => document.getElementById(id);
@@ -34,9 +34,16 @@ const els = {
   overBestVal: $("overBestVal"),
   newBest: $("newBest"),
   titleSponsorName: $("titleSponsorName"),
+  titleSponsorKicker: $("titleSponsorKicker"),
+  titleSponsorTag: $("titleSponsorTag"),
   overSponsorName: $("overSponsorName"),
+  overSponsorKicker: $("overSponsorKicker"),
+  overSponsorTag: $("overSponsorTag"),
   sponsorChip: $("sponsorChip"),
   sponsorChipName: $("sponsorChipName"),
+  sponsorChipKicker: $("sponsorChipKicker"),
+  titleSponsor: $("titleSponsor"),
+  overSponsor: $("overSponsor"),
   toast: $("toast"),
   presentedBy: $("presentedBy"),
   controlsHint: $("controlsHint"),
@@ -160,10 +167,21 @@ function refreshTitleStats() {
 
 function setSponsorUI(sponsor) {
   runSponsor = sponsor;
+  const kicker = sponsor.kicker || "Open for sponsors";
+  const tag = sponsor.tagline || "Put your brand on SHADOWKO";
+
   els.titleSponsorName.textContent = sponsor.name;
   els.overSponsorName.textContent = sponsor.name;
   els.sponsorChipName.textContent = sponsor.name;
-  els.presentedBy.textContent = `${sponsor.name} · Night market`;
+  if (els.titleSponsorKicker) els.titleSponsorKicker.textContent = kicker;
+  if (els.overSponsorKicker) els.overSponsorKicker.textContent = "This placement could be yours";
+  if (els.sponsorChipKicker) els.sponsorChipKicker.textContent = kicker;
+  if (els.titleSponsorTag) els.titleSponsorTag.textContent = tag;
+  if (els.overSponsorTag) els.overSponsorTag.textContent = tag;
+  els.presentedBy.textContent = "Open for brand partners";
+
+  if (els.titleSponsor?.tagName === "A") els.titleSponsor.href = SPONSOR_INQUIRY_URL;
+  if (els.overSponsor?.tagName === "A") els.overSponsor.href = SPONSOR_INQUIRY_URL;
 }
 
 function toast(msg) {
@@ -263,11 +281,13 @@ function fitBrand() {
   if (!text || !wrap) return;
 
   text.style.transform = "scale(1)";
-  const avail = Math.max(0, wrap.clientWidth - 8);
+  // Leave room for mute / safe insets on small phones
+  const sidePad = window.matchMedia("(max-width: 720px)").matches ? 24 : 8;
+  const avail = Math.max(0, wrap.clientWidth - sidePad);
   const need = text.scrollWidth;
   if (!avail || !need) return;
 
-  const scale = need > avail ? avail / need : 1;
+  const scale = Math.min(1, avail / need);
   text.style.transform = `scale(${scale})`;
 }
 
@@ -372,6 +392,8 @@ const game = new Game(els.canvas, {
     els.finalCombo.textContent = `×${snap.maxCombo}`;
     els.overBestVal.textContent = data.best.toLocaleString();
     els.overSponsorName.textContent = snap.sponsor.name;
+    if (els.overSponsorTag) els.overSponsorTag.textContent = snap.sponsor.tagline || "Sponsor SHADOWKO — reach every run";
+    if (els.overSponsorKicker) els.overSponsorKicker.textContent = "This placement could be yours";
     setHidden(els.newBest, !isNew);
 
     setHidden(els.hud, true);
@@ -428,7 +450,12 @@ els.whatsappShare?.addEventListener("click", () => {
 function isUiTarget(t) {
   return (
     t instanceof HTMLElement &&
-    (t.closest("button") || t.closest(".panel") || t.closest(".screen.is-active") || t.closest("#fatal"))
+    (t.closest("button") ||
+      t.closest("a") ||
+      t.closest(".panel") ||
+      t.closest(".screen.is-active") ||
+      t.closest("#fatal") ||
+      t.closest("#boot"))
   );
 }
 
@@ -476,49 +503,50 @@ window.addEventListener("keydown", (e) => {
   }
 });
 
-els.canvas.addEventListener(
-  "pointerdown",
-  (e) => {
-    if (game.state !== "playing" || game.paused) return;
-    if (isUiTarget(e.target)) return;
-    if (e.isPrimary === false) return;
-    touchStart = { x: e.clientX, y: e.clientY, t: performance.now(), id: e.pointerId };
-    try {
-      els.canvas.setPointerCapture(e.pointerId);
-    } catch {
-      /* ignore */
-    }
-  },
-  { passive: true }
-);
+function swipeThreshold() {
+  return Math.max(28, Math.min(56, window.innerWidth * 0.07));
+}
 
-els.canvas.addEventListener(
-  "pointerup",
-  (e) => {
-    if (game.state !== "playing" || game.paused || !touchStart) return;
-    if (touchStart.id != null && e.pointerId !== touchStart.id) return;
-    const dx = e.clientX - touchStart.x;
-    const dy = e.clientY - touchStart.y;
-    const dt = performance.now() - touchStart.t;
-    touchStart = null;
-    try {
-      els.canvas.releasePointerCapture(e.pointerId);
-    } catch {
-      /* ignore */
-    }
+function onPlayPointerDown(e) {
+  if (game.state !== "playing" || game.paused) return;
+  if (isUiTarget(e.target)) return;
+  if (e.isPrimary === false) return;
+  touchStart = { x: e.clientX, y: e.clientY, t: performance.now(), id: e.pointerId };
+  try {
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+  } catch {
+    /* ignore */
+  }
+}
 
-    if (Math.abs(dx) > 36 && Math.abs(dx) > Math.abs(dy) * 1.1) {
-      game.shiftLane(dx < 0 ? -1 : 1);
-      return;
-    }
-    if (Math.abs(dx) < 22 && Math.abs(dy) < 22 && dt < 400) {
-      game.morph();
-    }
-  },
-  { passive: true }
-);
+function onPlayPointerUp(e) {
+  if (game.state !== "playing" || game.paused || !touchStart) return;
+  if (touchStart.id != null && e.pointerId !== touchStart.id) return;
+  const dx = e.clientX - touchStart.x;
+  const dy = e.clientY - touchStart.y;
+  const dt = performance.now() - touchStart.t;
+  touchStart = null;
+  try {
+    e.currentTarget.releasePointerCapture?.(e.pointerId);
+  } catch {
+    /* ignore */
+  }
 
-els.canvas.addEventListener(
+  const swipe = swipeThreshold();
+  if (Math.abs(dx) > swipe && Math.abs(dx) > Math.abs(dy) * 1.05) {
+    game.shiftLane(dx < 0 ? -1 : 1);
+    return;
+  }
+  // Tap / light flick = morph
+  if (Math.abs(dx) < swipe * 0.7 && Math.abs(dy) < swipe * 0.7 && dt < 450) {
+    game.morph();
+  }
+}
+
+const playSurface = document.getElementById("app") || els.canvas;
+playSurface.addEventListener("pointerdown", onPlayPointerDown, { passive: true });
+playSurface.addEventListener("pointerup", onPlayPointerUp, { passive: true });
+playSurface.addEventListener(
   "pointercancel",
   () => {
     touchStart = null;
@@ -526,19 +554,48 @@ els.canvas.addEventListener(
   { passive: true }
 );
 
+// Stop iOS rubber-band / pull-to-refresh during play
+document.addEventListener(
+  "touchmove",
+  (e) => {
+    if (game.state !== "playing") return;
+    if (isUiTarget(e.target)) return;
+    e.preventDefault();
+  },
+  { passive: false }
+);
+
+document.addEventListener("contextmenu", (e) => {
+  if (game.state === "playing") e.preventDefault();
+});
+
 document.addEventListener("visibilitychange", () => {
   if (document.hidden) {
     if (game.state === "playing") game.setPaused(true);
   } else if (game.state === "playing" && game.paused) {
     game.setPaused(false);
+    game.resize();
     toast("Back in the night");
   }
 });
 
-window.addEventListener("resize", () => {
+function onViewportChange() {
   syncControlsHint();
   fitBrand();
+  game.resize();
+}
+
+window.addEventListener("resize", onViewportChange);
+window.addEventListener("orientationchange", () => {
+  setTimeout(onViewportChange, 120);
+  setTimeout(onViewportChange, 360);
 });
+
+if (window.visualViewport) {
+  window.visualViewport.addEventListener("resize", onViewportChange);
+  window.visualViewport.addEventListener("scroll", onViewportChange);
+}
+
 syncControlsHint();
 fitBrand();
 

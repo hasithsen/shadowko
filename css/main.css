@@ -43,9 +43,11 @@ html {
 }
 
 body {
+  position: fixed;
+  inset: 0;
   width: 100%;
   height: 100%;
-  min-height: 100dvh;
+  height: 100dvh;
   overflow: hidden;
   overscroll-behavior: none;
   background: var(--bg);
@@ -55,8 +57,10 @@ body {
   line-height: 1.4;
   -webkit-font-smoothing: antialiased;
   -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
   touch-action: none;
   user-select: none;
+  -webkit-user-select: none;
 }
 
 button,
@@ -101,7 +105,6 @@ a {
   position: relative;
   width: 100%;
   height: 100%;
-  min-height: 100dvh;
   overflow: hidden;
   isolation: isolate;
   opacity: 0;
@@ -110,6 +113,18 @@ a {
 
 body.is-ready #app {
   opacity: 1;
+}
+
+#game {
+  position: absolute;
+  inset: 0;
+  z-index: var(--z-game);
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: var(--bg);
+  touch-action: none;
+  cursor: pointer;
 }
 
 .boot {
@@ -171,16 +186,6 @@ body.is-ready #app {
   text-align: center;
   line-height: 1.45;
   box-shadow: 0 24px 64px rgba(0, 0, 0, 0.45);
-}
-
-#game {
-  position: absolute;
-  inset: 0;
-  z-index: var(--z-game);
-  display: block;
-  width: 100%;
-  height: 100%;
-  background: var(--bg);
 }
 
 .is-hidden:not(.screen),
@@ -473,13 +478,36 @@ body.is-ready #app {
 
 .sponsor-pill {
   text-align: center;
-  padding: 0.7rem 1.2rem;
+  padding: 0.75rem 1.15rem;
   border: 1px solid var(--line);
-  border-radius: 999px;
+  border-radius: 1.15rem;
   background: rgba(16, 19, 26, 0.72);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
-  max-width: min(100%, 22rem);
+  max-width: min(100%, 24rem);
+}
+
+.sponsor-pill--link {
+  display: block;
+  text-decoration: none;
+  color: inherit;
+  transition:
+    border-color 0.2s var(--ease-soft),
+    background 0.2s var(--ease-soft),
+    transform 0.15s var(--ease-soft);
+}
+
+.sponsor-pill--link:focus-visible {
+  outline: none;
+  box-shadow: var(--focus);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .sponsor-pill--link:hover {
+    border-color: rgba(240, 160, 32, 0.45);
+    background: rgba(240, 160, 32, 0.08);
+    transform: translateY(-1px);
+  }
 }
 
 .sponsor-name {
@@ -493,6 +521,16 @@ body.is-ready #app {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.sponsor-sub {
+  display: block;
+  margin-top: 0.2rem;
+  font-size: 0.72rem;
+  color: var(--muted);
+  letter-spacing: 0.01em;
+  line-height: 1.3;
+  text-wrap: balance;
 }
 
 /* ——— Buttons ——— */
@@ -664,6 +702,7 @@ body.is-ready #app {
   -webkit-backdrop-filter: blur(18px);
   text-align: center;
   box-shadow: 0 24px 64px rgba(0, 0, 0, 0.45);
+  touch-action: pan-y;
 }
 
 .panel-kicker {
@@ -1121,7 +1160,143 @@ body.is-ready #app {
   text-align: center;
 }
 
-/* ——— Responsive ——— */
+/* ——— Responsive / mobile ——— */
+@media (max-width: 720px) {
+  :root {
+    --screen-pad: 1rem;
+  }
+
+  .btn {
+    min-height: 3.1rem;
+  }
+
+  .btn-lg {
+    width: min(100%, 22rem);
+    min-height: 3.35rem;
+  }
+
+  .icon-btn {
+    width: 2.9rem;
+    height: 2.9rem;
+  }
+
+  .mute-btn {
+    top: calc(0.7rem + var(--safe-t));
+    right: calc(0.7rem + var(--safe-r));
+  }
+
+  .title-wrap {
+    width: min(100%, 36rem);
+    padding-inline: 0.15rem;
+  }
+
+  .eyebrow {
+    font-size: 0.62rem;
+    letter-spacing: 0.18em;
+    margin-bottom: 0.75rem;
+    padding-inline: 2.5rem; /* clear mute */
+  }
+
+  .tagline {
+    margin-bottom: 1.35rem;
+    font-size: 0.98rem;
+  }
+
+  .hint {
+    font-size: 0.78rem;
+    padding-inline: 0.5rem;
+  }
+
+  .title-stats {
+    width: 100%;
+    margin-top: 1.5rem;
+  }
+
+  .title-foot {
+    bottom: calc(0.85rem + var(--safe-b));
+    padding-inline: calc(0.75rem + var(--safe-l)) calc(0.75rem + var(--safe-r));
+  }
+
+  .sponsor-pill {
+    max-width: 100%;
+    padding: 0.6rem 1rem;
+  }
+
+  .panel {
+    width: min(100%, 26rem);
+    max-height: calc(100dvh - (var(--safe-t) + var(--safe-b) + 1.5rem));
+    overflow: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+    padding: 1.35rem 1.1rem 1.25rem;
+  }
+
+  .how-card {
+    padding: 0.75rem 0.7rem;
+  }
+
+  .how-card span:last-child {
+    font-size: 0.8rem;
+  }
+
+  .share-block {
+    padding: 0.8rem 0.7rem 0.75rem;
+  }
+
+  .share-prompt {
+    font-size: 0.8rem;
+  }
+
+  .btn-share-mini {
+    min-height: 2.75rem;
+    font-size: 0.68rem;
+  }
+
+  .hud {
+    padding:
+      calc(0.7rem + var(--safe-t))
+      calc(0.75rem + var(--safe-r))
+      calc(0.7rem + var(--safe-b))
+      calc(0.75rem + var(--safe-l));
+  }
+
+  .hud-top {
+    padding-right: calc(2.9rem + 0.55rem);
+  }
+
+  .hud-metric {
+    padding: 0.45rem 0.65rem;
+  }
+
+  .hud-value {
+    font-size: 1.15rem;
+  }
+
+  .hud-dock {
+    bottom: calc(0.65rem + var(--safe-b));
+    width: min(100% - 1rem, 18rem);
+  }
+
+  .hud-morph {
+    min-width: 8.5rem;
+    padding: 0.5rem 0.9rem 0.55rem;
+  }
+
+  .sponsor-chip {
+    top: calc(4.1rem + var(--safe-t));
+    max-width: min(78vw, 16rem);
+    padding: 0.4rem 0.75rem;
+  }
+
+  .toast {
+    bottom: calc(6.75rem + var(--safe-b));
+    max-width: min(88vw, 20rem);
+    font-size: 0.8rem;
+    white-space: normal;
+    text-align: center;
+  }
+}
+
 @media (max-width: 420px) {
   .hud-brand {
     display: none;
@@ -1131,34 +1306,36 @@ body.is-ready #app {
     grid-template-columns: 1fr 1fr;
   }
 
-  .title-stats {
-    width: 100%;
-  }
-
   .stat {
     min-width: 0;
     flex: 1;
   }
 
   .over-stats {
-    gap: 0.4rem;
+    gap: 0.35rem;
+  }
+
+  .over-stat {
+    padding: 0.6rem 0.25rem;
   }
 
   .over-stat .stat-value {
-    font-size: 0.95rem;
+    font-size: 0.9rem;
+  }
+
+  .over-score {
+    font-size: clamp(2.6rem, 16vw, 3.6rem);
+  }
+
+  .btn-kbd {
+    display: none !important;
   }
 }
 
-@media (orientation: landscape) and (max-height: 500px) {
-  .title-wrap {
-    transform: scale(0.92);
-    transform-origin: center top;
-  }
-
-  .brand-text {
-    font-size: clamp(2rem, 9vh, 3.4rem);
-    animation: none;
-    filter: drop-shadow(0 6px 20px rgba(240, 160, 32, 0.3));
+/* Short phones (SE / landscape-ish portrait chrome) */
+@media (max-height: 700px) and (orientation: portrait) {
+  .eyebrow {
+    margin-bottom: 0.45rem;
   }
 
   .tagline {
@@ -1167,7 +1344,47 @@ body.is-ready #app {
 
   .title-stats {
     margin-top: 1rem;
-    padding: 0.55rem 1rem;
+    padding: 0.65rem 1rem;
+  }
+
+  .title-foot {
+    display: none;
+  }
+
+  .brand {
+    margin-bottom: 0.55rem;
+  }
+
+  .brand-text {
+    font-size: clamp(2.1rem, 11vw, 3.6rem);
+  }
+}
+
+@media (orientation: landscape) and (max-height: 500px) {
+  .title-wrap {
+    transform: none;
+    width: min(100%, 34rem);
+  }
+
+  .brand-text {
+    font-size: clamp(1.8rem, 8vh, 2.8rem);
+    animation: none;
+    filter: drop-shadow(0 6px 20px rgba(240, 160, 32, 0.3));
+  }
+
+  .eyebrow {
+    margin-bottom: 0.35rem;
+    padding-inline: 3rem;
+  }
+
+  .tagline {
+    margin-bottom: 0.75rem;
+    font-size: 0.9rem;
+  }
+
+  .title-stats {
+    margin-top: 0.75rem;
+    padding: 0.45rem 0.85rem;
   }
 
   .title-foot {
@@ -1175,34 +1392,74 @@ body.is-ready #app {
   }
 
   .panel {
-    max-height: calc(100dvh - 1.5rem);
+    max-height: calc(100dvh - (var(--safe-t) + var(--safe-b) + 1rem));
     overflow: auto;
-    padding: 1.1rem 1rem;
+    -webkit-overflow-scrolling: touch;
+    padding: 0.9rem 0.9rem 0.85rem;
   }
 
   .how-grid {
     grid-template-columns: 1fr 1fr;
-    margin-bottom: 1rem;
+    gap: 0.45rem;
+    margin-bottom: 0.75rem;
   }
 
   .how-card {
-    padding: 0.55rem;
-    gap: 0.55rem;
+    padding: 0.45rem;
+    gap: 0.45rem;
+  }
+
+  .how-icon {
+    width: 2rem;
+    height: 2rem;
   }
 
   .hud-dock {
-    bottom: calc(0.55rem + var(--safe-b));
+    bottom: calc(0.4rem + var(--safe-b));
   }
 
   .hud-hint {
     display: none;
   }
 
+  .hud-top {
+    padding-right: calc(2.9rem + 0.5rem);
+  }
+
+  .mute-btn {
+    top: calc(0.45rem + var(--safe-t));
+    right: calc(0.45rem + var(--safe-r));
+  }
+
   .sponsor-chip {
-    top: calc(0.85rem + var(--safe-t));
-    left: calc(0.85rem + var(--safe-l));
+    top: calc(0.5rem + var(--safe-t));
+    left: calc(0.5rem + var(--safe-l));
+    right: auto;
     transform: none;
     animation: none;
+    max-width: min(42vw, 12rem);
+  }
+
+  .toast {
+    bottom: calc(4.5rem + var(--safe-b));
+  }
+
+  .share-row {
+    gap: 0.4rem;
+  }
+}
+
+@media (pointer: coarse) {
+  .btn,
+  .icon-btn,
+  .btn-share-mini {
+    min-height: 2.85rem;
+  }
+
+  .btn-lg,
+  .btn-share,
+  .btn-primary.btn-block {
+    min-height: 3.25rem;
   }
 }
 

@@ -143,9 +143,16 @@ export class Game {
     this.canvas.height = Math.floor(this.h * this.dpr);
     this.ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
 
-    this.roadTop = this.h * 0.28;
-    this.roadH = this.h * 0.58;
-    this.player.y = this.roadTop + this.roadH * 0.72;
+    const short = this.h < 640;
+    const landscape = this.w > this.h && this.h < 500;
+    this.roadTop = this.h * (landscape ? 0.18 : short ? 0.22 : 0.28);
+    this.roadH = this.h * (landscape ? 0.7 : short ? 0.62 : 0.58);
+    // Keep player above mobile HUD dock / home indicator
+    const dockReserve = Math.min(110, this.h * 0.16);
+    this.player.y = Math.min(
+      this.roadTop + this.roadH * 0.72,
+      this.h - dockReserve
+    );
     this.syncLanes(this.player.y);
     this.player.x = this.laneX[this.player.lane];
   }
@@ -218,8 +225,9 @@ export class Game {
     this.player = this.freshPlayer();
     this.syncLanes(this.player.y);
     this.player.x = this.laneX[1];
-    this.player.y = this.roadTop + this.roadH * 0.72;
-    this.baseSpeed = Math.min(this.w, 420) * 0.52;
+    const dockReserve = Math.min(110, this.h * 0.16);
+    this.player.y = Math.min(this.roadTop + this.roadH * 0.72, this.h - dockReserve);
+    this.baseSpeed = Math.min(this.w, 420) * (this.w < 420 ? 0.48 : 0.52);
     this.speed = this.baseSpeed;
     this.shake = 0;
     this.flash = 0;
@@ -383,8 +391,8 @@ export class Game {
       side: Math.random() < 0.5 ? 0 : 1,
       y: this.roadTop - rand(40, 180),
       sponsor: this.sponsor,
-      w: rand(96, 132),
-      h: rand(50, 64),
+      w: rand(118, 150),
+      h: rand(56, 70),
     });
   }
 
@@ -710,13 +718,13 @@ export class Game {
       ctx.fill();
       ctx.stroke();
       ctx.fillStyle = s.accent;
-      ctx.font = `700 ${Math.max(10, b.w * 0.11)}px Syne, sans-serif`;
+      ctx.font = `700 ${Math.max(9, b.w * 0.095)}px Syne, sans-serif`;
       ctx.textAlign = "center";
       ctx.textBaseline = "alphabetic";
-      ctx.fillText(s.name, x + b.w / 2, y + b.h * 0.45);
+      ctx.fillText(s.name, x + b.w / 2, y + b.h * 0.42, b.w - 12);
       ctx.fillStyle = "rgba(242,239,230,0.55)";
-      ctx.font = `500 ${Math.max(8, b.w * 0.08)}px Outfit, sans-serif`;
-      ctx.fillText(s.tagline, x + b.w / 2, y + b.h * 0.72);
+      ctx.font = `500 ${Math.max(7, b.w * 0.07)}px Outfit, sans-serif`;
+      ctx.fillText(s.tagline, x + b.w / 2, y + b.h * 0.72, b.w - 12);
       ctx.fillStyle = "rgba(80,88,104,0.5)";
       ctx.fillRect(x + b.w / 2 - 2, y + b.h, 4, 28);
     }
