@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+  <meta name="theme-color" content="#07080c" />
+  <meta name="color-scheme" content="dark" />
+  <meta name="description" content="SHADOWKO — Master the dark. Outrun the light. An addictive silhouette runner built for the night." />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta property="og:title" content="SHADOWKO" />
+  <meta property="og:description" content="Morph. Dash. Survive the light. How far can your shadow go?" />
+  <meta property="og:type" content="website" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect fill='%2307080c' width='64' height='64'/%3E%3Cpath fill='%23f0a020' d='M18 48V16l14 10 14-10v32H38V30l-6 4-6-4v18z'/%3E%3C/svg%3E" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Syne:wght@700;800&display=swap" rel="stylesheet" />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="stylesheet" href="css/main.css" />
+  <title>SHADOWKO — Master the dark</title>
+</head>
+<body class="is-booting">
+  <a class="skip-link" href="#playBtn">Skip to play</a>
+  <div id="announcer" class="sr-only" aria-live="polite" aria-atomic="true"></div>
+
+  <div id="boot" class="boot" role="status" aria-live="polite">
+    <div class="boot-mark" aria-hidden="true"></div>
+    <p class="boot-brand">SHADOWKO</p>
+  </div>
+
+  <div id="fatal" class="fatal is-hidden" hidden role="alert" aria-hidden="true"></div>
+
+  <div id="app">
+    <canvas id="game" role="img" aria-label="SHADOWKO game view"></canvas>
+
+    <div id="hud" class="hud is-hidden" hidden aria-hidden="true">
+      <div class="hud-top">
+        <div class="hud-metric hud-score" aria-label="Score">
+          <span class="hud-label">Score</span>
+          <span id="scoreVal" class="hud-value">0</span>
+        </div>
+        <div class="hud-brand" aria-hidden="true">SHADOWKO</div>
+        <div class="hud-metric hud-combo" aria-label="Combo">
+          <span class="hud-label">Combo</span>
+          <span id="comboVal" class="hud-value">×1</span>
+        </div>
+      </div>
+
+      <div id="sponsorChip" class="sponsor-chip is-hidden" hidden>
+        <span class="sponsor-chip-kicker">Spotlit by</span>
+        <span id="sponsorChipName">—</span>
+      </div>
+
+      <div class="hud-dock" aria-live="polite">
+        <div class="hud-morph" aria-label="Current form">
+          <div class="form-track" id="formTrack" aria-hidden="true">
+            <span class="form-pip" data-form="slim" title="Slim"></span>
+            <span class="form-pip" data-form="wide" title="Wide"></span>
+            <span class="form-pip" data-form="orb" title="Orb"></span>
+          </div>
+          <span class="hud-label">Form</span>
+          <span id="morphVal" class="hud-value morph-value">SLIM</span>
+        </div>
+        <p class="hud-hint" id="hudHint">Tap to morph · Swipe to lane</p>
+      </div>
+    </div>
+
+    <button
+      id="muteBtn"
+      class="icon-btn mute-btn"
+      type="button"
+      aria-pressed="false"
+      aria-label="Mute sound"
+      title="Mute"
+    >
+      <svg class="icon icon-sound" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <path fill="currentColor" d="M4 9v6h3l4 4V5L7 9H4zm11.5 3a3.5 3.5 0 0 0-1.8-3.1v6.2A3.5 3.5 0 0 0 15.5 12zm0-7.2v2.1a6.5 6.5 0 0 1 0 10.2v2.1a8.5 8.5 0 0 0 0-14.4z"/>
+      </svg>
+      <svg class="icon icon-muted" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <path fill="currentColor" d="M4 9v6h3l4 4V5L7 9H4zm12.7-3.3-1.4 1.4A6.5 6.5 0 0 1 17.5 12c0 1.4-.4 2.7-1.2 3.8l1.4 1.4A8.5 8.5 0 0 0 19.5 12a8.5 8.5 0 0 0-2.8-6.3zM14 9.2l-2 2V7.1c.8.4 1.5 1.1 2 2.1zm0 5.6c-.3.5-.7.9-1.2 1.2v-2.3l1.2 1.1zM3.3 2.9 2 4.2l18 18 1.3-1.3L3.3 2.9z"/>
+      </svg>
+    </button>
+
+    <section id="titleScreen" class="screen is-active" aria-label="Title" aria-hidden="false">
+      <div class="screen-bg" aria-hidden="true"></div>
+      <div class="screen-veil" aria-hidden="true"></div>
+      <div class="title-wrap">
+        <p class="eyebrow" id="presentedBy">A night market experience</p>
+        <h1 class="brand"><span class="brand-text">SHADOWKO</span></h1>
+        <p class="tagline">Master the dark. Outrun the light.</p>
+        <div class="title-cta">
+          <button id="playBtn" class="btn btn-primary btn-lg" type="button">
+            <span class="btn-label">Enter the night</span>
+            <span class="btn-kbd" aria-hidden="true">Space</span>
+          </button>
+          <p class="hint" id="controlsHint">Tap to morph · Swipe or ← → for lanes</p>
+        </div>
+        <div class="title-stats" aria-label="Your records">
+          <div class="stat">
+            <span class="stat-label">Best</span>
+            <span id="bestVal" class="stat-value">0</span>
+          </div>
+          <div class="stat-divider" aria-hidden="true"></div>
+          <div class="stat">
+            <span class="stat-label">Runs</span>
+            <span id="runsVal" class="stat-value">0</span>
+          </div>
+        </div>
+      </div>
+      <footer class="title-foot">
+        <div id="titleSponsor" class="sponsor-pill">
+          <span class="sponsor-kicker">Presented with</span>
+          <span id="titleSponsorName" class="sponsor-name">Shadowko Partners</span>
+        </div>
+      </footer>
+    </section>
+
+    <section
+      id="howScreen"
+      class="screen is-hidden"
+      hidden
+      aria-hidden="true"
+      aria-labelledby="howTitle"
+      role="dialog"
+      aria-modal="true"
+    >
+      <div class="screen-bg screen-bg--dim" aria-hidden="true"></div>
+      <div class="panel how-panel">
+        <p class="panel-kicker">First run</p>
+        <h2 id="howTitle">How to survive</h2>
+        <ol class="how-grid">
+          <li class="how-card">
+            <span class="how-icon how-icon--morph" aria-hidden="true"></span>
+            <div>
+              <strong>Morph</strong>
+              <span>Tap or Space to cycle Slim, Wide, Orb</span>
+            </div>
+          </li>
+          <li class="how-card">
+            <span class="how-icon how-icon--lane" aria-hidden="true"></span>
+            <div>
+              <strong>Shift lanes</strong>
+              <span>Swipe or use ← → to slip past light</span>
+            </div>
+          </li>
+          <li class="how-card">
+            <span class="how-icon how-icon--gate" aria-hidden="true"></span>
+            <div>
+              <strong>Match gates</strong>
+              <span>Your form must fit the silhouette</span>
+            </div>
+          </li>
+          <li class="how-card">
+            <span class="how-icon how-icon--combo" aria-hidden="true"></span>
+            <div>
+              <strong>Chain combos</strong>
+              <span>Orbs and clean gates multiply score</span>
+            </div>
+          </li>
+        </ol>
+        <button id="howPlayBtn" class="btn btn-primary btn-block" type="button">I'm ready</button>
+      </div>
+    </section>
+
+    <section
+      id="overScreen"
+      class="screen is-hidden"
+      hidden
+      aria-hidden="true"
+      aria-labelledby="overTitle"
+      role="dialog"
+      aria-modal="true"
+    >
+      <div class="screen-bg screen-bg--dim" aria-hidden="true"></div>
+      <div class="panel over-panel">
+        <p class="over-kicker" id="overTitle">The light found you</p>
+        <p class="over-score-label">Score</p>
+        <p class="over-score" id="finalScore" aria-live="polite">0</p>
+        <p id="newBest" class="new-best is-hidden" hidden>New personal best</p>
+        <div class="over-stats" aria-label="Run details">
+          <div class="over-stat">
+            <span class="stat-label">Distance</span>
+            <span class="stat-value"><span id="finalDist">0</span><span class="stat-suffix">m</span></span>
+          </div>
+          <div class="over-stat">
+            <span class="stat-label">Peak combo</span>
+            <span class="stat-value" id="finalCombo">×1</span>
+          </div>
+          <div class="over-stat">
+            <span class="stat-label">Best</span>
+            <span class="stat-value" id="overBestVal">0</span>
+          </div>
+        </div>
+        <div id="overSponsor" class="sponsor-pill over-sponsor">
+          <span class="sponsor-kicker">This run spotlit by</span>
+          <span id="overSponsorName" class="sponsor-name">—</span>
+        </div>
+        <div class="share-block" aria-label="Share your score">
+          <p class="share-prompt" id="sharePrompt">Challenge a friend to beat your run</p>
+          <button id="shareBtn" class="btn btn-share btn-block" type="button">
+            <svg class="btn-icon" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false">
+              <path fill="currentColor" d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92 1.61 0 2.92-1.31 2.92-2.92s-1.31-2.92-2.92-2.92z"/>
+            </svg>
+            <span class="btn-label" id="shareBtnLabel">Share score</span>
+          </button>
+          <div class="share-row" role="group" aria-label="More ways to share">
+            <button id="copyScoreBtn" class="btn btn-ghost btn-share-mini" type="button" title="Copy challenge text">Copy</button>
+            <a id="twitterShare" class="btn btn-ghost btn-share-mini" href="https://twitter.com/intent/tweet" target="_blank" rel="noopener noreferrer" title="Share on X">X</a>
+            <a id="whatsappShare" class="btn btn-ghost btn-share-mini" href="https://wa.me/" target="_blank" rel="noopener noreferrer" title="Share on WhatsApp">WhatsApp</a>
+          </div>
+        </div>
+        <div class="over-actions">
+          <button id="retryBtn" class="btn btn-primary btn-block" type="button">
+            <span class="btn-label">Run again</span>
+            <span class="btn-kbd" aria-hidden="true">Space</span>
+          </button>
+          <button id="menuBtn" class="btn btn-ghost btn-block" type="button">Menu</button>
+        </div>
+      </div>
+    </section>
+
+    <div id="toast" class="toast is-hidden" hidden role="status" aria-live="polite"></div>
+  </div>
+
+  <noscript>
+    <p class="noscript">SHADOWKO needs JavaScript to run.</p>
+  </noscript>
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>

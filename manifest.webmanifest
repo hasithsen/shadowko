@@ -1,0 +1,18 @@
+{
+  "name": "SHADOWKO",
+  "short_name": "SHADOWKO",
+  "description": "Master the dark. Outrun the light.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#07080c",
+  "theme_color": "#07080c",
+  "lang": "en",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect fill='%2307080c' width='64' height='64'/%3E%3Cpath fill='%23f0a020' d='M18 48V16l14 10 14-10v32H38V30l-6 4-6-4v18z'/%3E%3C/svg%3E",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
