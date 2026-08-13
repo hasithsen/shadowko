@@ -674,10 +674,13 @@ function onPlayRequest() {
 }
 
 function showFatal(message) {
+  // Always reveal the app shell so a fatal isn't stuck behind an opaque boot layer
+  document.body.classList.add("is-ready");
+  document.body.classList.remove("is-booting");
+  setHidden(els.boot, true);
   if (!els.fatal) return;
   els.fatal.textContent = message;
   setHidden(els.fatal, false);
-  setHidden(els.boot, true);
 }
 
 const game = new Game(els.canvas, {
@@ -776,6 +779,25 @@ if (!game.ok) {
   window.matchMedia("(prefers-reduced-motion: reduce)").addEventListener?.("change", (e) => {
     game.setReducedMotion(e.matches);
   });
+}
+
+// Leave the boot screen as soon as the canvas is up — do not wait on fonts/network/UI wiring
+finishBootEarly();
+
+function finishBootEarly() {
+  try {
+    window.__shadowkoBootClear?.();
+  } catch {
+    /* ignore */
+  }
+  document.body.classList.add("is-ready");
+  document.body.classList.remove("is-booting");
+  const bootEl = document.getElementById("boot");
+  if (bootEl) {
+    bootEl.classList.add("is-hidden");
+    bootEl.setAttribute("hidden", "");
+    bootEl.setAttribute("aria-hidden", "true");
+  }
 }
 
 els.playBtn.addEventListener("click", onPlayRequest);
@@ -1357,7 +1379,19 @@ if (appleTouch) document.body.classList.add("is-ios");
   }
 }
 
-goTitle();
+function finishBoot() {
+  finishBootEarly();
+  // Don't block first paint on fonts / storage — toast after a tick if needed
+  requestAnimationFrame(() => {
+    fitBrand();
+    measureDock();
+    try {
+      if (!storage.canPersist()) warnStorageOnce();
+    } catch {
+      /* ignore */
+    }
+  });
+}
 
 let fatalShown = false;
 function showFatalOnce(message) {
@@ -1367,9 +1401,10 @@ function showFatalOnce(message) {
 }
 
 window.addEventListener("error", (e) => {
+  // Ignore resource load errors (img/link/script src) — only real runtime errors
+  if (e?.target && e.target !== window) return;
   console.error(e?.error || e?.message || e);
-  // Ignore resource/script load noise once we're healthy; still fatal on boot failure
-  if (!game?.ok || !document.body.classList.contains("is-ready")) {
+  if (!document.body.classList.contains("is-ready")) {
     showFatalOnce("SHADOWKO hit a snag. Refresh to try again.");
   }
 });
@@ -1377,27 +1412,12 @@ window.addEventListener("unhandledrejection", (e) => {
   console.error(e?.reason || e);
 });
 
-async function finishBoot() {
-  try {
-    if (document.fonts?.ready) await Promise.race([document.fonts.ready, new Promise((r) => setTimeout(r, 900))]);
-  } catch {
-    /* ignore */
-  }
-  document.body.classList.add("is-ready");
-  document.body.classList.remove("is-booting");
-  setHidden(els.boot, true);
-  if (!storage.canPersist()) warnStorageOnce();
-  requestAnimationFrame(() => {
-    fitBrand();
-    measureDock();
-  });
+// Reveal UI immediately — never wait on fonts / network for the boot screen
+try {
+  goTitle();
+  finishBoot();
+} catch (err) {
+  console.error(err);
+  finishBoot();
+  showFatalOnce("SHADOWKO hit a snag. Refresh to try again.");
 }
-
-// If the module graph stalls (offline CDN / parse hang), surface a refresh CTA
-const bootWatch = setTimeout(() => {
-  if (!document.body.classList.contains("is-ready")) {
-    showFatalOnce("SHADOWKO is taking too long to load. Check your connection and refresh.");
-  }
-}, 8000);
-
-finishBoot().finally(() => clearTimeout(bootWatch));

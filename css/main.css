@@ -151,6 +151,14 @@ body.is-ready #app {
   transition: opacity 0.4s var(--ease-soft), visibility 0.4s var(--ease-soft);
 }
 
+/* Hard kill — never leave the spinner up once the app is ready */
+body.is-ready .boot {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+  opacity: 0 !important;
+}
+
 .boot-mark {
   width: 2.5rem;
   height: 2.5rem;

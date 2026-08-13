@@ -60,7 +60,11 @@ export class Game {
     this.canvas = canvas;
     // desynchronized can blank frames on older Safari — keep it off for Apple touch
     const apple = isAppleTouchUa();
-    this.ctx = canvas.getContext("2d", { alpha: false, desynchronized: !apple });
+    try {
+      this.ctx = canvas?.getContext?.("2d", { alpha: false, desynchronized: !apple }) || null;
+    } catch {
+      this.ctx = canvas?.getContext?.("2d", { alpha: false }) || null;
+    }
     this.hooks = hooks;
     this.audio = new AudioBus();
     this.ok = !!this.ctx;
