@@ -444,8 +444,8 @@ export class Game {
       side: Math.random() < 0.5 ? 0 : 1,
       y: this.roadTop - rand(40, 180),
       sponsor: this.sponsor,
-      w: rand(118, 150),
-      h: rand(56, 70),
+      w: rand(132, 168),
+      h: rand(58, 74),
     });
   }
 
@@ -767,20 +767,51 @@ export class Game {
       const x = b.side === 0 ? w * 0.04 : w * 0.96 - b.w;
       const y = b.y;
       const s = b.sponsor;
-      ctx.fillStyle = "rgba(10,12,18,0.92)";
+      const live = !!s.live;
+
+      // Panel
+      ctx.fillStyle = live ? "rgba(12,14,20,0.94)" : "rgba(10,12,18,0.92)";
       ctx.strokeStyle = s.color;
-      ctx.lineWidth = 2;
+      ctx.lineWidth = live ? 2.4 : 2;
+      if (this.quality > 0.7) {
+        ctx.shadowColor = s.color;
+        ctx.shadowBlur = live ? 14 : 8;
+      }
       roundRect(ctx, x, y, b.w, b.h, 8);
       ctx.fill();
       ctx.stroke();
+      ctx.shadowBlur = 0;
+
+      // Monogram badge
+      const badge = Math.min(28, b.h * 0.42);
+      const bx = x + 10;
+      const by = y + (b.h - badge) / 2;
+      ctx.fillStyle = hexAlpha(s.color, live ? 0.22 : 0.14);
+      roundRect(ctx, bx, by, badge, badge, 6);
+      ctx.fill();
+      ctx.strokeStyle = s.accent;
+      ctx.lineWidth = 1.2;
+      roundRect(ctx, bx, by, badge, badge, 6);
+      ctx.stroke();
       ctx.fillStyle = s.accent;
-      ctx.font = `700 ${Math.max(9, b.w * 0.095)}px Syne, sans-serif`;
+      ctx.font = `800 ${Math.max(8, badge * 0.42)}px Syne, sans-serif`;
       ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(String(s.logoText || "SK").slice(0, 3), bx + badge / 2, by + badge / 2 + 0.5);
+
+      // Copy
+      const textLeft = bx + badge + 8;
+      const textW = b.w - (textLeft - x) - 10;
+      ctx.textAlign = "left";
       ctx.textBaseline = "alphabetic";
-      ctx.fillText(s.name, x + b.w / 2, y + b.h * 0.42, b.w - 12);
+      ctx.fillStyle = s.accent;
+      ctx.font = `700 ${Math.max(9, b.w * 0.09)}px Syne, sans-serif`;
+      ctx.fillText(s.name, textLeft, y + b.h * 0.42, textW);
       ctx.fillStyle = "rgba(242,239,230,0.55)";
-      ctx.font = `500 ${Math.max(7, b.w * 0.07)}px Outfit, sans-serif`;
-      ctx.fillText(s.tagline, x + b.w / 2, y + b.h * 0.72, b.w - 12);
+      ctx.font = `500 ${Math.max(7, b.w * 0.065)}px Outfit, sans-serif`;
+      ctx.fillText(s.tagline, textLeft, y + b.h * 0.72, textW);
+
+      // Post
       ctx.fillStyle = "rgba(80,88,104,0.5)";
       ctx.fillRect(x + b.w / 2 - 2, y + b.h, 4, 28);
     }
@@ -935,12 +966,13 @@ export class Game {
     const unit = Math.min(64, w * 0.14);
     const phase = Math.floor(this.time * 0.7) % 3;
     const f = FORMS[phase];
+    const color = this.sponsor?.color || "#f0a020";
     ctx.save();
     ctx.globalAlpha = 0.35;
     ctx.fillStyle = "#0a0b10";
-    ctx.strokeStyle = "#f0a020";
+    ctx.strokeStyle = color;
     ctx.lineWidth = 2;
-    ctx.shadowColor = "#f0a020";
+    ctx.shadowColor = color;
     ctx.shadowBlur = this.quality > 0.7 ? 20 : 0;
     const bw = unit * f.w;
     const bh = unit * f.h;

@@ -10,10 +10,19 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="SHADOWKO" />
   <meta name="format-detection" content="telephone=no" />
-  <meta name="description" content="SHADOWKO — Master the dark. Outrun the light. An addictive silhouette runner built for the night." />
+  <meta name="description" content="SHADOWKO — Master the dark. Outrun the light. An addictive silhouette runner built for the night — and for brand partners." />
+  <link rel="canonical" href="https://shadowko.com/" />
   <meta property="og:title" content="SHADOWKO" />
   <meta property="og:description" content="Morph. Dash. Survive the light. How far can your shadow go?" />
   <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://shadowko.com/" />
+  <meta property="og:image" content="https://shadowko.com/og.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="SHADOWKO" />
+  <meta name="twitter:description" content="Morph. Dash. Survive the light. How far can your shadow go?" />
+  <meta name="twitter:image" content="https://shadowko.com/og.png" />
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect fill='%2307080c' width='64' height='64'/%3E%3Cpath fill='%23f0a020' d='M18 48V16l14 10 14-10v32H38V30l-6 4-6-4v18z'/%3E%3C/svg%3E" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -62,10 +71,15 @@
         </svg>
       </button>
 
-      <div id="sponsorChip" class="sponsor-chip is-hidden" hidden>
+      <a
+        id="sponsorChip"
+        class="sponsor-chip is-hidden"
+        hidden
+        href="mailto:sponsors@shadowko.com?subject=SHADOWKO%20Sponsorship"
+      >
         <span class="sponsor-chip-kicker" id="sponsorChipKicker">Open for sponsors</span>
         <span id="sponsorChipName">YOUR BRAND HERE</span>
-      </div>
+      </a>
 
       <div class="hud-bottom" id="hudBottom">
         <div class="hud-dock" id="hudDock" aria-live="polite">
@@ -125,6 +139,19 @@
       <div class="screen-bg" aria-hidden="true"></div>
       <div class="screen-veil" aria-hidden="true"></div>
       <div class="title-wrap">
+        <div
+          id="challengeBanner"
+          class="challenge-banner is-hidden"
+          hidden
+          role="status"
+          aria-live="polite"
+        >
+          <span class="challenge-kicker">Challenge</span>
+          <span class="challenge-copy">Beat <strong id="challengeTarget">0</strong></span>
+          <button id="challengeClear" class="challenge-clear" type="button" aria-label="Clear challenge">
+            Dismiss
+          </button>
+        </div>
         <p class="eyebrow" id="presentedBy">Open for brand partners</p>
         <h1 class="brand"><span class="brand-text">SHADOWKO</span></h1>
         <p class="tagline">Master the dark. Outrun the light.</p>

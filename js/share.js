@@ -1,6 +1,8 @@
-const SHARE_URL = "https://shadowko.com";
+import { SITE_ORIGIN } from "./sponsors.js";
 
-function buildPayload({ score = 0, distance = 0, combo = 1, isBest = false } = {}) {
+const SHARE_URL = SITE_ORIGIN || "https://shadowko.com";
+
+function buildPayload({ score = 0, distance = 0, combo = 1, isBest = false, sponsorName = "" } = {}) {
   const s = Math.max(0, Math.floor(Number(score) || 0));
   const d = Math.max(0, Math.floor(Number(distance) || 0));
   const c = Math.max(1, Math.floor(Number(combo) || 1));
@@ -16,7 +18,11 @@ function buildPayload({ score = 0, distance = 0, combo = 1, isBest = false } = {
     : `I scored ${s.toLocaleString()} in SHADOWKO — beat that.`;
 
   const detail = `${d.toLocaleString()}m · peak combo ×${c}`;
-  const text = `${challenge}\n${detail}\nMaster the dark. Outrun the light.`;
+  const sponsorLine =
+    sponsorName && !/YOUR BRAND|OWN THE NIGHT|FEATURE THIS|SPONSOR THIS/i.test(sponsorName)
+      ? `\nRun presented with ${sponsorName}`
+      : "";
+  const text = `${challenge}\n${detail}${sponsorLine}\nMaster the dark. Outrun the light.`;
   const href = url.toString();
 
   return {
@@ -95,3 +101,17 @@ export const shareScore = {
     return u.toString();
   },
 };
+
+/** Parse incoming challenge from URL (?beat=). */
+export function readChallengeFromUrl(search = typeof location !== "undefined" ? location.search : "") {
+  try {
+    const params = new URLSearchParams(search.startsWith("?") ? search : `?${search}`);
+    const raw = params.get("beat");
+    if (raw == null || raw === "") return 0;
+    const n = Math.floor(Number(raw));
+    if (!Number.isFinite(n) || n <= 0) return 0;
+    return Math.min(n, 99_999_999);
+  } catch {
+    return 0;
+  }
+}

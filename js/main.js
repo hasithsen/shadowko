@@ -1,7 +1,14 @@
 import { Game } from "./game.js";
 import { storage } from "./storage.js";
-import { pickSponsor, SPONSORS, SPONSOR_INQUIRY_URL } from "./sponsors.js";
-import { shareScore } from "./share.js";
+import {
+  pickSponsor,
+  SPONSORS,
+  sponsorHref,
+  isLiveSponsor,
+  normalizeSponsor,
+} from "./sponsors.js";
+import { shareScore, readChallengeFromUrl } from "./share.js";
+import { analytics } from "./analytics.js";
 
 const $ = (id) => document.getElementById(id);
 
@@ -56,6 +63,9 @@ const els = {
   sponsorChip: $("sponsorChip"),
   sponsorChipName: $("sponsorChipName"),
   sponsorChipKicker: $("sponsorChipKicker"),
+  challengeBanner: $("challengeBanner"),
+  challengeTargetEl: $("challengeTarget"),
+  challengeClear: $("challengeClear"),
   titleSponsor: $("titleSponsor"),
   overSponsor: $("overSponsor"),
   toast: $("toast"),
@@ -103,6 +113,8 @@ let userPaused = false;
 let hapticsOk = true;
 let howFromMenu = false;
 let viewportTimer = 0;
+let challengeTarget = 0;
+let impressedSponsors = new Set();
 
 function prefersTouchControls() {
   // Always show on-screen pad on Apple touch devices — Safari media queries can lie with keyboards
@@ -137,10 +149,95 @@ function haptic(ms = 12) {
   }
 }
 
+function applySponsorTheme(sponsor) {
+  const s = normalizeSponsor(sponsor);
+  const root = document.documentElement;
+  root.style.setProperty("--sponsor", s.color);
+  root.style.setProperty("--sponsor-accent", s.accent);
+  root.style.setProperty("--sponsor-glow", `0 0 0 1px ${s.color}40, 0 10px 40px ${s.color}48`);
+  document.body.classList.toggle("has-live-sponsor", !!s.live);
+}
+
+function wireSponsorLink(el, sponsor, placement) {
+  if (!el || el.tagName !== "A") return;
+  const href = sponsorHref(sponsor, { placement });
+  el.href = href;
+  const live = isLiveSponsor(sponsor);
+  if (live && sponsor.ctaUrl) {
+    el.target = "_blank";
+    el.rel = "noopener noreferrer sponsored";
+  } else {
+    el.removeAttribute("target");
+    el.rel = "noopener";
+  }
+  el.dataset.sponsorId = sponsor.id || "";
+  el.dataset.placement = placement;
+}
+
+function setSponsorUI(sponsor) {
+  const s = normalizeSponsor(sponsor);
+  runSponsor = s;
+  applySponsorTheme(s);
+
+  const kicker = s.kicker;
+  const tag = s.tagline;
+  const eyebrow = s.live ? s.presentedBy : "Open for brand partners";
+  const overKicker = s.live ? s.presentedBy || "Presented by" : "This placement could be yours";
+
+  els.titleSponsorName.textContent = s.name;
+  els.overSponsorName.textContent = s.name;
+  els.sponsorChipName.textContent = s.name;
+  if (els.titleSponsorKicker) els.titleSponsorKicker.textContent = kicker;
+  if (els.overSponsorKicker) els.overSponsorKicker.textContent = overKicker;
+  if (els.sponsorChipKicker) els.sponsorChipKicker.textContent = kicker;
+  if (els.titleSponsorTag) els.titleSponsorTag.textContent = tag;
+  if (els.overSponsorTag) els.overSponsorTag.textContent = tag;
+  if (els.presentedBy) els.presentedBy.textContent = eyebrow;
+
+  wireSponsorLink(els.titleSponsor, s, "title_pill");
+  wireSponsorLink(els.overSponsor, s, "over_pill");
+  wireSponsorLink(els.sponsorChip, s, "hud_chip");
+
+  if (game?.ok) game.sponsor = s;
+
+  const key = `${s.id}:title`;
+  if (!impressedSponsors.has(key)) {
+    impressedSponsors.add(key);
+    analytics.sponsorImpression(s.id, "title");
+  }
+}
+
+function syncChallengeBanner() {
+  const show = challengeTarget > 0 && activeScreen === "title";
+  if (els.challengeTargetEl) {
+    els.challengeTargetEl.textContent = challengeTarget.toLocaleString();
+  }
+  setHidden(els.challengeBanner, !show);
+  document.body.classList.toggle("has-challenge", challengeTarget > 0);
+}
+
+function adoptChallenge(target, { persist = true, announceSeen = true } = {}) {
+  const n = Math.max(0, Math.floor(Number(target) || 0));
+  challengeTarget = n;
+  if (persist) {
+    if (n > 0) storage.setChallengeTarget(n);
+    else storage.clearChallengeTarget();
+  }
+  syncChallengeBanner();
+  if (n > 0 && announceSeen) {
+    analytics.challengeSeen(n);
+    announce(`Challenge accepted. Beat ${n.toLocaleString()}.`);
+  }
+}
+
 function currentShareStats() {
   const score =
     lastRunStats.score || lastRunScore || (typeof game !== "undefined" && game?.snapshot ? game.snapshot().score : 0);
-  return { ...lastRunStats, score };
+  return {
+    ...lastRunStats,
+    score,
+    sponsorName: isLiveSponsor(runSponsor) ? runSponsor.name : "",
+  };
 }
 
 function syncShareLinks(stats = currentShareStats()) {
@@ -165,17 +262,20 @@ async function doNativeShare() {
   const stats = currentShareStats();
   const result = await shareScore.native(stats);
   if (result.ok) {
+    analytics.share("native", stats);
     toast("Shared — go viral");
     announce("Score shared.");
     return;
   }
   if (result.reason === "abort") return;
   const copied = await shareScore.copy(stats);
+  if (copied.ok) analytics.share("copy_fallback", stats);
   toast(copied.ok ? "Challenge copied — paste anywhere" : "Couldn't share");
 }
 
 async function doCopyShare() {
   const result = await shareScore.copy(currentShareStats());
+  if (result.ok) analytics.share("copy", currentShareStats());
   toast(result.ok ? "Challenge copied — paste anywhere" : "Couldn't copy");
 }
 
@@ -211,6 +311,7 @@ function setScreen(name) {
   }
 
   activeScreen = name;
+  syncChallengeBanner();
 
   const focusFor = {
     title: els.playBtn,
@@ -231,25 +332,6 @@ function refreshTitleStats() {
   els.bestVal.textContent = data.best.toLocaleString();
   els.runsVal.textContent = data.runs.toLocaleString();
   if (els.overBestVal) els.overBestVal.textContent = data.best.toLocaleString();
-}
-
-function setSponsorUI(sponsor) {
-  runSponsor = sponsor;
-  const kicker = sponsor.kicker || "Open for sponsors";
-  const tag = sponsor.tagline || "Put your brand on SHADOWKO";
-
-  els.titleSponsorName.textContent = sponsor.name;
-  els.overSponsorName.textContent = sponsor.name;
-  els.sponsorChipName.textContent = sponsor.name;
-  if (els.titleSponsorKicker) els.titleSponsorKicker.textContent = kicker;
-  if (els.overSponsorKicker) els.overSponsorKicker.textContent = "This placement could be yours";
-  if (els.sponsorChipKicker) els.sponsorChipKicker.textContent = kicker;
-  if (els.titleSponsorTag) els.titleSponsorTag.textContent = tag;
-  if (els.overSponsorTag) els.overSponsorTag.textContent = tag;
-  els.presentedBy.textContent = "Open for brand partners";
-
-  if (els.titleSponsor?.tagName === "A") els.titleSponsor.href = SPONSOR_INQUIRY_URL;
-  if (els.overSponsor?.tagName === "A") els.overSponsor.href = SPONSOR_INQUIRY_URL;
 }
 
 function toast(msg) {
@@ -317,13 +399,17 @@ function animateScore(target) {
 function showSponsorChip() {
   els.sponsorChip.classList.remove("is-fading");
   setHidden(els.sponsorChip, false);
+  game.audio.sponsorReveal?.();
+  analytics.sponsorImpression(runSponsor?.id, "hud_chip");
   clearTimeout(chipTimer);
+  // Live kits linger longer — inventory pitches stay punchy
+  const hold = isLiveSponsor(runSponsor) ? 5200 : 3800;
   chipTimer = setTimeout(() => {
     els.sponsorChip.classList.add("is-fading");
     setTimeout(() => {
       if (game.state === "playing") setHidden(els.sponsorChip, true);
     }, 480);
-  }, 3200);
+  }, hold);
 }
 
 function showHudHint() {
@@ -528,6 +614,7 @@ function beginPlay() {
   updateHud(game.snapshot(), { force: true });
   updateFormPips(game.snapshot().form.id);
   syncTouchPadVisibility();
+  analytics.playStart(runSponsor?.id);
   // Double-rAF: wait for HUD/layout paint before measuring dock (iOS address bar)
   requestAnimationFrame(() => {
     requestAnimationFrame(() => {
@@ -538,6 +625,9 @@ function beginPlay() {
   });
   showSponsorChip();
   showHudHint();
+  if (challengeTarget > 0) {
+    toast(`Beat ${challengeTarget.toLocaleString()}`);
+  }
   announce("Run started. Morph to match gates. Avoid light beams.");
 }
 
@@ -595,22 +685,37 @@ const game = new Game(els.canvas, {
     storage.addRun(snap.score, snap.distance);
     const data = storage.get();
     const isNew = snap.score > prevBest && snap.score > 0;
+    const beatChallenge = challengeTarget > 0 && snap.score >= challengeTarget;
     lastRunScore = snap.score;
     syncShareLinks({
       score: snap.score,
       distance: snap.distance,
       combo: snap.maxCombo,
       isBest: isNew || snap.score >= data.best,
+      sponsorName: isLiveSponsor(snap.sponsor) ? snap.sponsor.name : "",
     });
 
     animateScore(snap.score);
     els.finalDist.textContent = snap.distance.toLocaleString();
     els.finalCombo.textContent = `×${snap.maxCombo}`;
     els.overBestVal.textContent = data.best.toLocaleString();
-    els.overSponsorName.textContent = snap.sponsor.name;
-    if (els.overSponsorTag) els.overSponsorTag.textContent = snap.sponsor.tagline || "Sponsor SHADOWKO — reach every run";
-    if (els.overSponsorKicker) els.overSponsorKicker.textContent = "This placement could be yours";
+    setSponsorUI(snap.sponsor || runSponsor);
     setHidden(els.newBest, !isNew);
+
+    if (isNew || beatChallenge) game.audio.fanfare?.();
+
+    if (beatChallenge) {
+      analytics.challengeBeaten(challengeTarget, snap.score);
+      toast(`Challenge beaten — ${snap.score.toLocaleString()}`);
+      adoptChallenge(0, { announceSeen: false });
+    }
+
+    analytics.gameOver({
+      score: snap.score,
+      distance: snap.distance,
+      isBest: isNew,
+      sponsorId: snap.sponsor?.id,
+    });
 
     setHidden(els.hud, true);
     setHidden(els.sponsorChip, true);
@@ -625,7 +730,9 @@ const game = new Game(els.canvas, {
     announce(
       isNew
         ? `New personal best ${snap.score}. Run again or share your score.`
-        : `Score ${snap.score}. Run again or return to menu.`
+        : beatChallenge
+          ? `Challenge beaten with ${snap.score}. Share it.`
+          : `Score ${snap.score}. Run again or return to menu.`
     );
   },
 });
@@ -724,10 +831,27 @@ els.copyScoreBtn?.addEventListener("click", () => {
 
 els.twitterShare?.addEventListener("click", () => {
   syncShareLinks(currentShareStats());
+  analytics.share("twitter", currentShareStats());
 });
 
 els.whatsappShare?.addEventListener("click", () => {
   syncShareLinks(currentShareStats());
+  analytics.share("whatsapp", currentShareStats());
+});
+
+function onSponsorAnchorClick(e) {
+  const a = e.currentTarget;
+  if (!(a instanceof HTMLAnchorElement)) return;
+  analytics.sponsorClick(a.dataset.sponsorId || runSponsor?.id, a.dataset.placement || "unknown");
+}
+
+els.titleSponsor?.addEventListener("click", onSponsorAnchorClick);
+els.overSponsor?.addEventListener("click", onSponsorAnchorClick);
+els.sponsorChip?.addEventListener("click", onSponsorAnchorClick);
+
+els.challengeClear?.addEventListener("click", () => {
+  adoptChallenge(0, { announceSeen: false });
+  toast("Challenge cleared");
 });
 
 els.formTrack?.addEventListener(
@@ -1151,7 +1275,35 @@ refreshTitleStats();
 updateFormPips("slim");
 syncShareLinks({ score: storage.get().best, distance: 0, combo: 1, isBest: false });
 if (appleTouch) document.body.classList.add("is-ios");
+
+// Challenge deep link: ?beat=12400 closes the viral share loop
+{
+  const fromUrl = readChallengeFromUrl(location.search);
+  const stored = storage.get().challengeTarget || 0;
+  const target = fromUrl || stored;
+  if (target > 0) adoptChallenge(target, { persist: true, announceSeen: !!fromUrl });
+  // Clean URL without losing history noise for share remounts
+  if (fromUrl > 0 && window.history?.replaceState) {
+    try {
+      const u = new URL(location.href);
+      u.searchParams.delete("beat");
+      // keep utm params for analytics platforms
+      window.history.replaceState({}, "", u.pathname + u.search + u.hash);
+    } catch {
+      /* ignore */
+    }
+  }
+}
+
 goTitle();
+
+window.addEventListener("error", (e) => {
+  if (!game?.ok) showFatal("SHADOWKO hit a snag. Refresh to try again.");
+  console.error(e?.error || e?.message || e);
+});
+window.addEventListener("unhandledrejection", (e) => {
+  console.error(e?.reason || e);
+});
 
 async function finishBoot() {
   try {

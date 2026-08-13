@@ -8,6 +8,7 @@ const defaults = {
   seenHow: false,
   totalDistance: 0,
   muted: false,
+  challengeTarget: 0,
 };
 
 function sanitize(raw) {
@@ -18,6 +19,7 @@ function sanitize(raw) {
   data.totalDistance = Math.max(0, Math.floor(Number(data.totalDistance) || 0));
   data.seenHow = !!data.seenHow;
   data.muted = !!data.muted;
+  data.challengeTarget = Math.max(0, Math.floor(Number(data.challengeTarget) || 0));
   return data;
 }
 
@@ -63,5 +65,14 @@ export const storage = {
     data.muted = !!muted;
     write(data);
     return data.muted;
+  },
+  setChallengeTarget(target) {
+    const data = read();
+    data.challengeTarget = Math.max(0, Math.floor(Number(target) || 0));
+    write(data);
+    return data.challengeTarget;
+  },
+  clearChallengeTarget() {
+    return this.setChallengeTarget(0);
   },
 };

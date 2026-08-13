@@ -105,4 +105,17 @@ export class AudioBus {
     this.tone(260, 0.1, "triangle", 0.28, 100);
     this.tone(390, 0.14, "sine", 0.22, 160);
   }
+
+  /** Soft brand sting when a sponsor chip / live kit appears. */
+  sponsorReveal() {
+    this.tone(310, 0.1, "sine", 0.2, 80);
+    this.tone(465, 0.16, "triangle", 0.14, 40);
+  }
+
+  /** Celebrate a personal best / challenge beaten — short fanfare. */
+  fanfare() {
+    this.tone(330, 0.08, "triangle", 0.26, 60);
+    this.tone(415, 0.1, "sine", 0.22, 80);
+    this.tone(520, 0.16, "triangle", 0.18, 40);
+  }
 }
