@@ -45,6 +45,7 @@ export const storage = {
   get() {
     return read();
   },
+  /** @returns {{ data: object, ok: boolean }} */
   addRun(score, distance) {
     const data = read();
     const s = Math.max(0, Math.floor(Number(score) || 0));
@@ -52,13 +53,13 @@ export const storage = {
     data.runs += 1;
     data.totalDistance += d;
     if (s > data.best) data.best = s;
-    write(data);
-    return data;
+    const ok = write(data);
+    return { data, ok };
   },
   markHowSeen() {
     const data = read();
     data.seenHow = true;
-    write(data);
+    return write(data);
   },
   setMuted(muted) {
     const data = read();
@@ -74,5 +75,16 @@ export const storage = {
   },
   clearChallengeTarget() {
     return this.setChallengeTarget(0);
+  },
+  /** Probe whether localStorage is writable (private mode / quota). */
+  canPersist() {
+    try {
+      const k = "__shadowko_w";
+      localStorage.setItem(k, "1");
+      localStorage.removeItem(k);
+      return true;
+    } catch {
+      return false;
+    }
   },
 };

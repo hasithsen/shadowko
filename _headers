@@ -1,17 +1,27 @@
 /*
   X-Content-Type-Options: nosniff
   Referrer-Policy: strict-origin-when-cross-origin
-  Permissions-Policy: interest-cohort=(), browsing-topics=()
+  Permissions-Policy: interest-cohort=(), browsing-topics=(), accelerometer=(), gyroscope=(), microphone=(), camera=()
   X-Frame-Options: DENY
-  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob:; connect-src 'self'; media-src 'self'; worker-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self' mailto:
+  Strict-Transport-Security: max-age=31536000; includeSubDomains; preload
+  Content-Security-Policy: default-src 'self'; script-src 'self' https://plausible.io https://www.googletagmanager.com https://www.google-analytics.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob:; connect-src 'self' https://plausible.io https://www.google-analytics.com https://region1.google-analytics.com https://www.googletagmanager.com; media-src 'self'; worker-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self' mailto:; object-src 'none'
 
 /*.html
   Cache-Control: public, max-age=0, must-revalidate
 
+/
+  Cache-Control: public, max-age=0, must-revalidate
+
 /css/*
-  Cache-Control: public, max-age=604800, stale-while-revalidate=86400
+  Cache-Control: public, max-age=0, must-revalidate
 
 /js/*
+  Cache-Control: public, max-age=0, must-revalidate
+
+/icon-*.png
+  Cache-Control: public, max-age=604800, stale-while-revalidate=86400
+
+/apple-touch-icon.png
   Cache-Control: public, max-age=604800, stale-while-revalidate=86400
 
 /og.png

@@ -18,13 +18,15 @@ function pushQueue(event, props) {
   }
 }
 
-export function track(event, props = {}) {
+function emit(event, props = {}, { queue = true } = {}) {
   if (!event || typeof event !== "string") return;
 
   const payload = { ...props };
+  let delivered = false;
   try {
     if (typeof window.plausible === "function") {
       window.plausible(event, { props: payload });
+      delivered = true;
     }
   } catch {
     /* ignore */
@@ -33,6 +35,7 @@ export function track(event, props = {}) {
   try {
     if (typeof window.gtag === "function") {
       window.gtag("event", event, payload);
+      delivered = true;
     }
   } catch {
     /* ignore */
@@ -45,7 +48,33 @@ export function track(event, props = {}) {
     /* ignore */
   }
 
-  pushQueue(event, payload);
+  if (queue && !delivered) pushQueue(event, payload);
+}
+
+export function track(event, props = {}) {
+  emit(event, props, { queue: true });
+}
+
+function flushQueue() {
+  let q = [];
+  try {
+    const raw = sessionStorage.getItem(QUEUE_KEY);
+    q = raw ? JSON.parse(raw) : [];
+    sessionStorage.removeItem(QUEUE_KEY);
+  } catch {
+    return;
+  }
+  for (const item of q) {
+    if (!item?.event) continue;
+    emit(item.event, item.props || {}, { queue: false });
+  }
+}
+
+// Replay queued events once a tag manager / Plausible script arrives
+if (typeof window !== "undefined") {
+  window.addEventListener("load", () => {
+    setTimeout(flushQueue, 1200);
+  });
 }
 
 export const analytics = {

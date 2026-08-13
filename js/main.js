@@ -84,6 +84,12 @@ const coarseMq = window.matchMedia("(pointer: coarse)");
 const fineMq = window.matchMedia("(pointer: fine)");
 const hoverMq = window.matchMedia("(hover: hover)");
 
+// Non-blocking font stylesheet (CSP-safe — no inline onload)
+{
+  const fontLink = document.getElementById("fontStyles");
+  if (fontLink) fontLink.media = "all";
+}
+
 /** iPhone / iPod / iPad (incl. iPadOS desktop UA). */
 function isAppleTouchDevice() {
   const ua = navigator.userAgent || "";
@@ -312,6 +318,7 @@ function setScreen(name) {
 
   activeScreen = name;
   syncChallengeBanner();
+  syncChromeInert();
 
   const focusFor = {
     title: els.playBtn,
@@ -327,6 +334,14 @@ function setScreen(name) {
   }
 }
 
+/** Mute stays global; inert it only while a modal screen owns focus. */
+function syncChromeInert() {
+  const modal = activeScreen === "how" || activeScreen === "over" || !els.pauseOverlay?.classList.contains("is-hidden");
+  if (els.muteBtn && "inert" in els.muteBtn) {
+    els.muteBtn.inert = modal && activeScreen !== "title";
+  }
+}
+
 function refreshTitleStats() {
   const data = storage.get();
   els.bestVal.textContent = data.best.toLocaleString();
@@ -339,6 +354,13 @@ function toast(msg) {
   setHidden(els.toast, false);
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => setHidden(els.toast, true), 1700);
+}
+
+let storageWarned = false;
+function warnStorageOnce() {
+  if (storageWarned) return;
+  storageWarned = true;
+  toast("Progress can’t be saved in private mode");
 }
 
 function pop(el, cls = "is-pop") {
@@ -546,7 +568,12 @@ function setPauseUI(paused, { fromSystem = false } = {}) {
   if (paused) {
     game.setPaused(true);
     setHidden(els.pauseOverlay, false);
+    if (els.pauseOverlay) {
+      els.pauseOverlay.setAttribute("aria-hidden", "false");
+      if ("inert" in els.pauseOverlay) els.pauseOverlay.inert = false;
+    }
     syncTouchPadVisibility();
+    syncChromeInert();
     if (els.resumeBtn) {
       requestAnimationFrame(() => safeFocus(els.resumeBtn));
     }
@@ -555,9 +582,14 @@ function setPauseUI(paused, { fromSystem = false } = {}) {
     userPaused = false;
     game.setPaused(false);
     setHidden(els.pauseOverlay, true);
+    if (els.pauseOverlay) {
+      els.pauseOverlay.setAttribute("aria-hidden", "true");
+      if ("inert" in els.pauseOverlay) els.pauseOverlay.inert = true;
+    }
     game.resize();
     measureDock();
     syncTouchPadVisibility();
+    syncChromeInert();
   }
 }
 
@@ -682,8 +714,8 @@ const game = new Game(els.canvas, {
     setHidden(els.pauseOverlay, true);
     updateHud(snap, { force: true });
     const prevBest = storage.get().best;
-    storage.addRun(snap.score, snap.distance);
-    const data = storage.get();
+    const { data, ok: saved } = storage.addRun(snap.score, snap.distance);
+    if (!saved) warnStorageOnce();
     const isNew = snap.score > prevBest && snap.score > 0;
     const beatChallenge = challengeTarget > 0 && snap.score >= challengeTarget;
     lastRunScore = snap.score;
@@ -1212,8 +1244,38 @@ document.addEventListener("visibilitychange", () => {
     if (game.state === "playing" && !game.paused) {
       pauseGame({ fromSystem: true });
     }
+  } else {
+    // iOS may suspend AudioContext after a call / app switch
+    if (game.state === "playing" && !game.paused) game.audio.resume();
   }
-  // Do not auto-resume — player taps Continue (safer mid-obstacle on phones)
+});
+
+/** Simple focus trap for modal screens + pause overlay (desktop keyboard). */
+document.addEventListener("keydown", (e) => {
+  if (e.key !== "Tab" || isTouchPrimary()) return;
+  const root =
+    !els.pauseOverlay?.classList.contains("is-hidden")
+      ? els.pauseOverlay
+      : activeScreen === "how"
+        ? els.howScreen
+        : activeScreen === "over"
+          ? els.overScreen
+          : null;
+  if (!root) return;
+  const focusables = [...root.querySelectorAll("button, a[href], [tabindex]:not([tabindex='-1'])")].filter(
+    (el) => !el.hasAttribute("disabled") && el.getAttribute("aria-hidden") !== "true" && el.offsetParent !== null
+  );
+  if (focusables.length < 2) return;
+  const first = focusables[0];
+  const last = focusables[focusables.length - 1];
+  const active = document.activeElement;
+  if (e.shiftKey && active === first) {
+    e.preventDefault();
+    last.focus({ preventScroll: true });
+  } else if (!e.shiftKey && active === last) {
+    e.preventDefault();
+    first.focus({ preventScroll: true });
+  }
 });
 
 // iOS Safari: pagehide when jumping to app switcher / suspending the tab
@@ -1297,9 +1359,19 @@ if (appleTouch) document.body.classList.add("is-ios");
 
 goTitle();
 
+let fatalShown = false;
+function showFatalOnce(message) {
+  if (fatalShown) return;
+  fatalShown = true;
+  showFatal(message);
+}
+
 window.addEventListener("error", (e) => {
-  if (!game?.ok) showFatal("SHADOWKO hit a snag. Refresh to try again.");
   console.error(e?.error || e?.message || e);
+  // Ignore resource/script load noise once we're healthy; still fatal on boot failure
+  if (!game?.ok || !document.body.classList.contains("is-ready")) {
+    showFatalOnce("SHADOWKO hit a snag. Refresh to try again.");
+  }
 });
 window.addEventListener("unhandledrejection", (e) => {
   console.error(e?.reason || e);
@@ -1312,11 +1384,20 @@ async function finishBoot() {
     /* ignore */
   }
   document.body.classList.add("is-ready");
+  document.body.classList.remove("is-booting");
   setHidden(els.boot, true);
+  if (!storage.canPersist()) warnStorageOnce();
   requestAnimationFrame(() => {
     fitBrand();
     measureDock();
   });
 }
 
-finishBoot();
+// If the module graph stalls (offline CDN / parse hang), surface a refresh CTA
+const bootWatch = setTimeout(() => {
+  if (!document.body.classList.contains("is-ready")) {
+    showFatalOnce("SHADOWKO is taking too long to load. Check your connection and refresh.");
+  }
+}, 8000);
+
+finishBoot().finally(() => clearTimeout(bootWatch));

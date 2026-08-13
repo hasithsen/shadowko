@@ -58,7 +58,9 @@ function hexAlpha(hex, a) {
 export class Game {
   constructor(canvas, hooks = {}) {
     this.canvas = canvas;
-    this.ctx = canvas.getContext("2d", { alpha: false, desynchronized: true });
+    // desynchronized can blank frames on older Safari — keep it off for Apple touch
+    const apple = isAppleTouchUa();
+    this.ctx = canvas.getContext("2d", { alpha: false, desynchronized: !apple });
     this.hooks = hooks;
     this.audio = new AudioBus();
     this.ok = !!this.ctx;
@@ -106,6 +108,8 @@ export class Game {
     this.dockReserve = 0;
     this._needsResize = false;
     this._lastDprCap = 2;
+    this._lastIdleRender = 0;
+    this._qualityFlipGuard = 0;
 
     this._onResize = () => this.resize();
     this._loop = (ts) => this.frame(ts);
@@ -1032,16 +1036,22 @@ export class Game {
   }
 
   adaptQuality(dt) {
-    if (dt <= 0) return;
+    if (dt <= 0 || this.state !== "playing") return;
     const fps = 1 / dt;
     this.fpsEma = this.fpsEma * 0.9 + fps * 0.1;
     const prev = this.quality;
     if (this.fpsEma < 45) this.quality = Math.max(0.45, this.quality - 0.02);
     else if (this.fpsEma > 56) this.quality = Math.min(1, this.quality + 0.01);
-    // Retune DPR when quality crosses the soft-cap threshold
+    // Retune DPR when quality crosses the soft-cap threshold (guard against thrash)
     const nextCap = this.quality < 0.75 ? 1.25 : isAppleTouchUa() ? 1.75 : 2;
-    if (nextCap !== this._lastDprCap || Math.abs(prev - this.quality) > 0.05) {
+    const crossed =
+      (prev >= 0.75 && this.quality < 0.75) || (prev < 0.75 && this.quality >= 0.75);
+    const now = performance.now();
+    if ((crossed || Math.abs(prev - this.quality) > 0.08) && now - this._qualityFlipGuard > 1200) {
+      this._qualityFlipGuard = now;
+      this._lastDprCap = nextCap;
       this._needsResize = true;
+      if (crossed) this.seedDecor();
     }
   }
 
@@ -1051,6 +1061,27 @@ export class Game {
       if (this._needsResize) {
         this._needsResize = false;
         this.resize();
+      }
+      this.raf = requestAnimationFrame(this._loop);
+      return;
+    }
+
+    // Title / game-over: low-FPS ambient loop to save phone battery & heat
+    if (this.state !== "playing") {
+      if (this._needsResize) {
+        this._needsResize = false;
+        this.resize();
+      }
+      const idleMs = this.reducedMotion ? 200 : 90;
+      if (!this._lastIdleRender || ts - this._lastIdleRender >= idleMs) {
+        const prev = this._lastIdleRender || ts;
+        this._lastIdleRender = ts;
+        let dt = (ts - prev) / 1000;
+        dt = Math.min(0.2, Math.max(0, dt));
+        this.dt = dt;
+        this.lastTs = ts;
+        this.update(dt);
+        this.render();
       }
       this.raf = requestAnimationFrame(this._loop);
       return;

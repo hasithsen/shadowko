@@ -96,15 +96,22 @@ If you add a third-party analytics host, extend CSP `script-src` / `connect-src`
 
 ## Production notes
 
-- Adaptive quality when FPS dips (DPR retunes with quality; softer cap on iOS)
+- **Mobile-first CSS** — phone base styles; desktop via `min-width: 721px` / `900px`
+- ≥44px hit targets on coarse pointers; landscape floor at `2.85rem`
+- Viewport allows pinch-zoom (a11y); `touch-action` still blocks play-surface scroll
+- Adaptive quality when FPS dips (DPR retunes with quality; softer cap on iOS; thrash guard)
+- Idle / game-over canvas throttled (~10–15fps) to save battery
 - Visibility / pagehide pause + manual Continue (no mid-obstacle surprise resume)
 - On-screen touch pad on coarse / Apple touch; keyboard-first on desktop
 - Opening invulnerability + brief near-miss grace
 - Dock-aware player Y (HUD / home indicator / touch pad)
-- Sanitized localStorage (`js/storage.js`) including challenge targets
+- Sanitized localStorage (`js/storage.js`) including challenge targets; private-mode toast
 - Mute persists with player prefs
-- OG image: `og.png` · sitemap: `sitemap.xml` · Netlify headers: `_headers`
+- PWA icons: `icon-192.png` / `icon-512.png` / `apple-touch-icon.png`
+- OG image: `og.png` · sitemap: `sitemap.xml` · Netlify headers: `_headers` (HSTS, CSP, no stale JS/CSS)
+- Asset bust: `?v=` on CSS/JS in `index.html`
 - Procedural Web Audio (no asset CDN)
+- Boot timeout + fatal refresh CTA if modules stall
 
 ## Deploy
 
