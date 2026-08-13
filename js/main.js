@@ -9,6 +9,7 @@ const els = {
   canvas: $("game"),
   hud: $("hud"),
   hudDock: $("hudDock"),
+  hudBottom: $("hudBottom"),
   scoreVal: $("scoreVal"),
   comboVal: $("comboVal"),
   morphVal: $("morphVal"),
@@ -17,7 +18,11 @@ const els = {
   howScreen: $("howScreen"),
   overScreen: $("overScreen"),
   playBtn: $("playBtn"),
+  helpBtn: $("helpBtn"),
   howPlayBtn: $("howPlayBtn"),
+  howBackBtn: $("howBackBtn"),
+  howKicker: $("howKicker"),
+  howTitle: $("howTitle"),
   retryBtn: $("retryBtn"),
   shareBtn: $("shareBtn"),
   shareBtnLabel: $("shareBtnLabel"),
@@ -81,6 +86,7 @@ let lastRunScore = 0;
 let lastRunStats = { score: 0, distance: 0, combo: 1, isBest: false };
 let userPaused = false;
 let hapticsOk = true;
+let howFromMenu = false;
 
 function prefersTouchControls() {
   // Phones / tablets: coarse pointer, or touch without fine hover (many convertibles)
@@ -341,20 +347,38 @@ function syncTouchPadVisibility() {
 
 function measureDock() {
   if (!game?.ok) return;
-  const dock = els.hudDock;
-  const pad = els.touchPad;
+  const bottom = els.hudBottom || els.hudDock;
   let reserve = 0;
-  if (dock && !els.hud?.classList.contains("is-hidden")) {
-    const r = dock.getBoundingClientRect();
-    reserve = Math.max(reserve, window.innerHeight - r.top + 12);
-  }
-  if (pad && !pad.classList.contains("is-hidden")) {
-    const r = pad.getBoundingClientRect();
-    reserve = Math.max(reserve, window.innerHeight - r.top + 10);
+  if (bottom && !els.hud?.classList.contains("is-hidden")) {
+    const r = bottom.getBoundingClientRect();
+    if (r.height > 0) reserve = Math.max(reserve, window.innerHeight - r.top + 14);
   }
   // Always leave room for home indicator / chrome
   reserve = Math.max(reserve, Math.min(130, window.innerHeight * 0.16));
   game.setDockReserve(reserve);
+}
+
+function configureHowScreen({ fromMenu = false } = {}) {
+  howFromMenu = !!fromMenu;
+  if (els.howKicker) els.howKicker.textContent = fromMenu ? "Controls" : "First run";
+  if (els.howTitle) els.howTitle.textContent = fromMenu ? "How to play" : "How to survive";
+  if (els.howPlayBtn) {
+    els.howPlayBtn.textContent = fromMenu ? "Enter the night" : "I'm ready";
+  }
+  setHidden(els.howBackBtn, !fromMenu);
+}
+
+function openHowFromMenu() {
+  configureHowScreen({ fromMenu: true });
+  setScreen("how");
+  announce("How to play. Review controls, then play or go back.");
+  requestAnimationFrame(() => els.howBackBtn?.focus({ preventScroll: true }));
+}
+
+function openHowFirstRun() {
+  configureHowScreen({ fromMenu: false });
+  setScreen("how");
+  announce("How to survive. Review controls, then press I'm ready.");
 }
 
 /** Scale the wide Syne wordmark so it never clips the viewport. */
@@ -466,8 +490,7 @@ function onPlayRequest() {
   game.audio.resume();
   const data = storage.get();
   if (!data.seenHow) {
-    setScreen("how");
-    announce("How to survive. Review controls, then press I'm ready.");
+    openHowFirstRun();
     return;
   }
   beginPlay();
@@ -562,9 +585,16 @@ if (!game.ok) {
 }
 
 els.playBtn.addEventListener("click", onPlayRequest);
+els.helpBtn?.addEventListener("click", () => {
+  openHowFromMenu();
+});
 els.howPlayBtn.addEventListener("click", () => {
   storage.markHowSeen();
   beginPlay();
+});
+els.howBackBtn?.addEventListener("click", () => {
+  howFromMenu = false;
+  goTitle();
 });
 els.retryBtn.addEventListener("click", beginPlay);
 els.menuBtn.addEventListener("click", goTitle);

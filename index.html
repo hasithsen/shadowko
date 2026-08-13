@@ -67,29 +67,31 @@
         <span id="sponsorChipName">YOUR BRAND HERE</span>
       </div>
 
-      <div class="hud-dock" id="hudDock" aria-live="polite">
-        <div class="hud-morph" aria-label="Current form">
-          <div class="form-track" id="formTrack" role="group" aria-label="Choose form">
-            <button type="button" class="form-pip" data-form="slim" title="Slim" aria-label="Slim form"></button>
-            <button type="button" class="form-pip" data-form="wide" title="Wide" aria-label="Wide form"></button>
-            <button type="button" class="form-pip" data-form="orb" title="Orb" aria-label="Orb form"></button>
+      <div class="hud-bottom" id="hudBottom">
+        <div class="hud-dock" id="hudDock" aria-live="polite">
+          <div class="hud-morph" aria-label="Current form">
+            <div class="form-track" id="formTrack" role="group" aria-label="Choose form">
+              <button type="button" class="form-pip" data-form="slim" title="Slim" aria-label="Slim form"></button>
+              <button type="button" class="form-pip" data-form="wide" title="Wide" aria-label="Wide form"></button>
+              <button type="button" class="form-pip" data-form="orb" title="Orb" aria-label="Orb form"></button>
+            </div>
+            <span class="hud-label">Form</span>
+            <span id="morphVal" class="hud-value morph-value">SLIM</span>
           </div>
-          <span class="hud-label">Form</span>
-          <span id="morphVal" class="hud-value morph-value">SLIM</span>
+          <p class="hud-hint" id="hudHint">Tap to morph · Swipe to lane</p>
         </div>
-        <p class="hud-hint" id="hudHint">Tap to morph · Swipe to lane</p>
-      </div>
 
-      <div id="touchPad" class="touch-pad is-hidden" hidden aria-label="Touch controls">
-        <button type="button" class="touch-btn touch-lane" data-lane="-1" aria-label="Lane left">
-          <span aria-hidden="true">‹</span>
-        </button>
-        <button type="button" class="touch-btn touch-morph" data-morph="1" aria-label="Morph form">
-          <span class="touch-morph-label">Morph</span>
-        </button>
-        <button type="button" class="touch-btn touch-lane" data-lane="1" aria-label="Lane right">
-          <span aria-hidden="true">›</span>
-        </button>
+        <div id="touchPad" class="touch-pad is-hidden" hidden aria-label="Touch controls">
+          <button type="button" class="touch-btn touch-lane" data-lane="-1" aria-label="Lane left">
+            <span aria-hidden="true">‹</span>
+          </button>
+          <button type="button" class="touch-btn touch-morph" data-morph="1" aria-label="Morph form">
+            <span class="touch-morph-label">Morph</span>
+          </button>
+          <button type="button" class="touch-btn touch-lane" data-lane="1" aria-label="Lane right">
+            <span aria-hidden="true">›</span>
+          </button>
+        </div>
       </div>
     </div>
 
@@ -130,6 +132,9 @@
             <span class="btn-label">Enter the night</span>
             <span class="btn-kbd" aria-hidden="true">Space</span>
           </button>
+          <button id="helpBtn" class="btn btn-ghost btn-help" type="button">
+            <span class="btn-label">How to play</span>
+          </button>
           <p class="hint" id="controlsHint">Tap to morph · Swipe or ← → for lanes</p>
         </div>
         <div class="title-stats" aria-label="Your records">
@@ -168,7 +173,7 @@
     >
       <div class="screen-bg screen-bg--dim" aria-hidden="true"></div>
       <div class="panel how-panel">
-        <p class="panel-kicker">First run</p>
+        <p class="panel-kicker" id="howKicker">First run</p>
         <h2 id="howTitle">How to survive</h2>
         <ol class="how-grid">
           <li class="how-card">
@@ -200,7 +205,10 @@
             </div>
           </li>
         </ol>
-        <button id="howPlayBtn" class="btn btn-primary btn-block" type="button">I'm ready</button>
+        <div class="how-actions">
+          <button id="howPlayBtn" class="btn btn-primary btn-block" type="button">I'm ready</button>
+          <button id="howBackBtn" class="btn btn-ghost btn-block is-hidden" type="button" hidden>Back</button>
+        </div>
       </div>
     </section>
 
