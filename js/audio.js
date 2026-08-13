@@ -42,7 +42,9 @@ export class AudioBus {
 
   resume() {
     this.ensure();
-    if (this.ctx?.state === "suspended") {
+    if (!this.ctx) return Promise.resolve();
+    // Safari starts suspended and re-suspends after interruptions / backgrounding
+    if (this.ctx.state === "suspended" || this.ctx.state === "interrupted") {
       return this.ctx.resume().catch(() => {});
     }
     return Promise.resolve();

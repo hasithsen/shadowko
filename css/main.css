@@ -39,6 +39,7 @@
 
 html {
   height: 100%;
+  height: -webkit-fill-available;
   color-scheme: dark;
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
@@ -50,6 +51,7 @@ body {
   width: 100%;
   height: 100%;
   height: 100dvh;
+  height: -webkit-fill-available;
   overflow: hidden;
   overscroll-behavior: none;
   background: var(--bg);
@@ -111,6 +113,9 @@ a {
   isolation: isolate;
   opacity: 0;
   transition: opacity 0.45s var(--ease-soft);
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 body.is-ready #app {
@@ -239,6 +244,7 @@ body.is-ready #app {
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
+  touch-action: pan-y;
 }
 
 .screen-bg {
@@ -787,6 +793,7 @@ body.is-ready #app {
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
   padding-top: calc(var(--screen-pad) + var(--safe-t) + 2.75rem);
+  touch-action: pan-y;
 }
 
 .panel {
@@ -1290,6 +1297,7 @@ body.is-ready #app {
 
 .touch-btn {
   appearance: none;
+  -webkit-appearance: none;
   border: 1px solid var(--line-strong);
   background: rgba(7, 8, 12, 0.62);
   color: var(--ink);
@@ -1308,6 +1316,8 @@ body.is-ready #app {
     transform 0.12s var(--ease-soft);
   -webkit-user-select: none;
   user-select: none;
+  touch-action: manipulation;
+  -webkit-touch-callout: none;
 }
 
 .touch-btn:focus-visible {

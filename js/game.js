@@ -28,6 +28,14 @@ function pick(arr) {
   return arr[(Math.random() * arr.length) | 0];
 }
 
+function isAppleTouchUa() {
+  const ua = navigator.userAgent || "";
+  return (
+    /iPhone|iPod|iPad/.test(ua) ||
+    (navigator.platform === "MacIntel" && (navigator.maxTouchPoints || 0) > 1)
+  );
+}
+
 function roundRect(ctx, x, y, w, h, r) {
   const rr = Math.min(r, w / 2, h / 2);
   ctx.beginPath();
@@ -163,12 +171,20 @@ export class Game {
   resize() {
     if (!this.ok) return;
     const rect = this.canvas.getBoundingClientRect();
-    const dprCap = this.quality < 0.75 ? 1.25 : 2;
+    // iOS Safari can briefly report 0×0 during URL-bar / orientation transitions
+    let cssW = rect.width;
+    let cssH = rect.height;
+    if (cssW < 2 || cssH < 2) {
+      const vv = window.visualViewport;
+      cssW = vv?.width || window.innerWidth || document.documentElement.clientWidth || 1;
+      cssH = vv?.height || window.innerHeight || document.documentElement.clientHeight || 1;
+    }
+    const dprCap = this.quality < 0.75 ? 1.25 : isAppleTouchUa() ? 1.75 : 2;
     this._lastDprCap = dprCap;
     const nextDpr = Math.min(window.devicePixelRatio || 1, dprCap);
     this.dpr = nextDpr;
-    this.w = Math.max(1, rect.width);
-    this.h = Math.max(1, rect.height);
+    this.w = Math.max(1, cssW);
+    this.h = Math.max(1, cssH);
     this.canvas.width = Math.floor(this.w * this.dpr);
     this.canvas.height = Math.floor(this.h * this.dpr);
     this.ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
@@ -991,7 +1007,7 @@ export class Game {
     if (this.fpsEma < 45) this.quality = Math.max(0.45, this.quality - 0.02);
     else if (this.fpsEma > 56) this.quality = Math.min(1, this.quality + 0.01);
     // Retune DPR when quality crosses the soft-cap threshold
-    const nextCap = this.quality < 0.75 ? 1.25 : 2;
+    const nextCap = this.quality < 0.75 ? 1.25 : isAppleTouchUa() ? 1.75 : 2;
     if (nextCap !== this._lastDprCap || Math.abs(prev - this.quality) > 0.05) {
       this._needsResize = true;
     }

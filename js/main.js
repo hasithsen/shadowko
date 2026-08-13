@@ -74,8 +74,21 @@ const coarseMq = window.matchMedia("(pointer: coarse)");
 const fineMq = window.matchMedia("(pointer: fine)");
 const hoverMq = window.matchMedia("(hover: hover)");
 
+/** iPhone / iPod / iPad (incl. iPadOS desktop UA). */
+function isAppleTouchDevice() {
+  const ua = navigator.userAgent || "";
+  if (/iPhone|iPod|iPad/.test(ua)) return true;
+  // iPadOS 13+ can report as Macintosh with touch
+  return navigator.platform === "MacIntel" && (navigator.maxTouchPoints || 0) > 1;
+}
+
+const appleTouch = isAppleTouchDevice();
+
 let runSponsor = pickSponsor();
-let touchStart = null;
+/** Active play gesture — never drop mid-swipe on iOS (pointercancel). */
+let gesture = null;
+/** Ignore synthetic mouse/pointer after a touch gesture (iOS ghost clicks). */
+let ignorePointerUntil = 0;
 let toastTimer = 0;
 let chipTimer = 0;
 let hintTimer = 0;
@@ -89,14 +102,30 @@ let lastRunStats = { score: 0, distance: 0, combo: 1, isBest: false };
 let userPaused = false;
 let hapticsOk = true;
 let howFromMenu = false;
+let viewportTimer = 0;
 
 function prefersTouchControls() {
-  // Phones / tablets: coarse pointer, or touch without fine hover (many convertibles)
+  // Always show on-screen pad on Apple touch devices — Safari media queries can lie with keyboards
+  if (appleTouch || ((navigator.maxTouchPoints || 0) > 0 && !hoverMq.matches)) return true;
   return coarseMq.matches || ("ontouchstart" in window && !hoverMq.matches);
 }
 
 function isTouchPrimary() {
-  return coarseMq.matches || ("ontouchstart" in window && !hoverMq.matches);
+  return prefersTouchControls();
+}
+
+function safeFocus(el) {
+  // Programmatic focus scrolls / zooms the visual viewport on iOS Safari
+  if (!el || isTouchPrimary()) return;
+  try {
+    el.focus({ preventScroll: true });
+  } catch {
+    try {
+      el.focus();
+    } catch {
+      /* ignore */
+    }
+  }
 }
 
 function haptic(ms = 12) {
@@ -191,8 +220,8 @@ function setScreen(name) {
 
   const focusEl = focusFor[name];
   if (focusEl) {
-    requestAnimationFrame(() => focusEl.focus({ preventScroll: true }));
-  } else if (document.activeElement instanceof HTMLElement) {
+    requestAnimationFrame(() => safeFocus(focusEl));
+  } else if (document.activeElement instanceof HTMLElement && !isTouchPrimary()) {
     document.activeElement.blur();
   }
 }
@@ -433,7 +462,7 @@ function setPauseUI(paused, { fromSystem = false } = {}) {
     setHidden(els.pauseOverlay, false);
     syncTouchPadVisibility();
     if (els.resumeBtn) {
-      requestAnimationFrame(() => els.resumeBtn.focus({ preventScroll: true }));
+      requestAnimationFrame(() => safeFocus(els.resumeBtn));
     }
     announce(fromSystem ? "Game paused. Continue when ready." : "Paused.");
   } else {
@@ -490,6 +519,7 @@ function beginPlay() {
   setHidden(els.pauseOverlay, true);
   setSponsorUI(pickSponsor(Date.now()));
   game.setPaused(false);
+  // Must stay in the user-gesture stack on iOS Safari
   game.audio.resume();
   game.start(runSponsor);
   lastScore = 0;
@@ -498,9 +528,13 @@ function beginPlay() {
   updateHud(game.snapshot(), { force: true });
   updateFormPips(game.snapshot().form.id);
   syncTouchPadVisibility();
+  // Double-rAF: wait for HUD/layout paint before measuring dock (iOS address bar)
   requestAnimationFrame(() => {
-    measureDock();
-    game.resize();
+    requestAnimationFrame(() => {
+      measureDock();
+      game.resize();
+      game.layoutPlayer?.();
+    });
   });
   showSponsorChip();
   showHudHint();
@@ -617,7 +651,36 @@ els.howBackBtn?.addEventListener("click", () => {
   howFromMenu = false;
   goTitle();
 });
+// iOS: touchend is more reliable than click for starting inside the gesture window
+els.playBtn.addEventListener(
+  "touchend",
+  (e) => {
+    if (activeScreen !== "title") return;
+    e.preventDefault();
+    onPlayRequest();
+  },
+  { passive: false }
+);
+els.howPlayBtn.addEventListener(
+  "touchend",
+  (e) => {
+    if (activeScreen !== "how") return;
+    e.preventDefault();
+    storage.markHowSeen();
+    beginPlay();
+  },
+  { passive: false }
+);
 els.retryBtn.addEventListener("click", beginPlay);
+els.retryBtn.addEventListener(
+  "touchend",
+  (e) => {
+    if (activeScreen !== "over") return;
+    e.preventDefault();
+    beginPlay();
+  },
+  { passive: false }
+);
 els.menuBtn.addEventListener("click", goTitle);
 
 els.muteBtn.addEventListener("click", () => {
@@ -633,6 +696,15 @@ els.pauseBtn?.addEventListener("click", () => {
 els.resumeBtn?.addEventListener("click", () => {
   resumeGame();
 });
+els.resumeBtn?.addEventListener(
+  "touchend",
+  (e) => {
+    if (game.state !== "playing" || !game.paused) return;
+    e.preventDefault();
+    resumeGame();
+  },
+  { passive: false }
+);
 
 els.pauseMenuBtn?.addEventListener("click", () => {
   goTitle();
@@ -658,25 +730,72 @@ els.whatsappShare?.addEventListener("click", () => {
   syncShareLinks(currentShareStats());
 });
 
-els.formTrack?.addEventListener("click", (e) => {
-  const pip = e.target.closest?.(".form-pip");
-  if (!pip || game.state !== "playing" || game.paused) return;
-  e.preventDefault();
-  game.morph(pip.dataset.form);
-});
+els.formTrack?.addEventListener(
+  "pointerdown",
+  (e) => {
+    if (performance.now() < ignorePointerUntil) return;
+    const pip = e.target.closest?.(".form-pip");
+    if (!pip || game.state !== "playing" || game.paused) return;
+    e.preventDefault();
+    e.stopPropagation();
+    game.audio.resume();
+    game.morph(pip.dataset.form);
+  },
+  { passive: false }
+);
 
-els.touchPad?.addEventListener("pointerdown", (e) => {
-  const btn = e.target.closest?.(".touch-btn");
-  if (!btn || game.state !== "playing" || game.paused) return;
-  e.preventDefault();
-  e.stopPropagation();
-  const lane = btn.dataset.lane;
-  if (lane != null) {
-    game.shiftLane(Number(lane));
-    return;
-  }
-  if (btn.dataset.morph) game.morph();
-});
+els.formTrack?.addEventListener(
+  "touchstart",
+  (e) => {
+    const pip = e.target.closest?.(".form-pip");
+    if (!pip || game.state !== "playing" || game.paused) return;
+    e.preventDefault();
+    e.stopPropagation();
+    ignorePointerUntil = performance.now() + 700;
+    game.audio.resume();
+    game.morph(pip.dataset.form);
+  },
+  { passive: false }
+);
+
+els.touchPad?.addEventListener(
+  "pointerdown",
+  (e) => {
+    if (performance.now() < ignorePointerUntil) return;
+    const btn = e.target.closest?.(".touch-btn");
+    if (!btn || game.state !== "playing" || game.paused) return;
+    e.preventDefault();
+    e.stopPropagation();
+    game.audio.resume();
+    const lane = btn.dataset.lane;
+    if (lane != null) {
+      game.shiftLane(Number(lane));
+      return;
+    }
+    if (btn.dataset.morph) game.morph();
+  },
+  { passive: false }
+);
+
+// iOS: touch events are more reliable than pointer for immediate pad hits
+els.touchPad?.addEventListener(
+  "touchstart",
+  (e) => {
+    const btn = e.target.closest?.(".touch-btn");
+    if (!btn || game.state !== "playing" || game.paused) return;
+    e.preventDefault();
+    e.stopPropagation();
+    ignorePointerUntil = performance.now() + 700;
+    game.audio.resume();
+    const lane = btn.dataset.lane;
+    if (lane != null) {
+      game.shiftLane(Number(lane));
+      return;
+    }
+    if (btn.dataset.morph) game.morph();
+  },
+  { passive: false }
+);
 
 function isUiTarget(t) {
   return (
@@ -687,6 +806,7 @@ function isUiTarget(t) {
       t.closest(".screen.is-active") ||
       t.closest("#pauseOverlay") ||
       t.closest("#touchPad") ||
+      t.closest("#hudBottom") ||
       t.closest("#fatal") ||
       t.closest("#boot"))
   );
@@ -754,54 +874,47 @@ window.addEventListener("keydown", (e) => {
 });
 
 function swipeThreshold() {
-  return Math.max(24, Math.min(52, window.innerWidth * 0.065));
+  // Slightly lower on phones so lane changes feel crisp
+  const base = Math.max(22, Math.min(48, window.innerWidth * 0.055));
+  return appleTouch ? Math.min(base, 28) : base;
 }
 
-function onPlayPointerDown(e) {
-  if (game.state !== "playing") return;
-  if (game.paused) {
-    // Tap anywhere (non-UI) resumes — mobile-friendly
-    if (!isUiTarget(e.target)) resumeGame();
-    return;
-  }
-  if (isUiTarget(e.target)) return;
-  if (e.isPrimary === false) return;
-  // Mouse on fine pointers: only left button; avoid accidental lane drags from hover tools
-  if (e.pointerType === "mouse" && e.button !== 0) return;
-  touchStart = {
-    x: e.clientX,
-    y: e.clientY,
+function beginGesture(x, y, id, type) {
+  gesture = {
+    x,
+    y,
+    lastX: x,
+    lastY: y,
     t: performance.now(),
-    id: e.pointerId,
-    type: e.pointerType || "unknown",
+    id,
+    type,
   };
-  try {
-    e.currentTarget.setPointerCapture?.(e.pointerId);
-  } catch {
-    /* ignore */
-  }
 }
 
-function onPlayPointerUp(e) {
-  if (game.state !== "playing" || game.paused || !touchStart) return;
-  if (touchStart.id != null && e.pointerId !== touchStart.id) return;
-  const dx = e.clientX - touchStart.x;
-  const dy = e.clientY - touchStart.y;
-  const dt = performance.now() - touchStart.t;
-  const pointerType = touchStart.type;
-  touchStart = null;
-  try {
-    e.currentTarget.releasePointerCapture?.(e.pointerId);
-  } catch {
-    /* ignore */
-  }
+function moveGesture(x, y, id) {
+  if (!gesture) return;
+  if (id != null && gesture.id != null && id !== gesture.id) return;
+  gesture.lastX = x;
+  gesture.lastY = y;
+}
 
+function finishGesture(x, y, type) {
+  if (!gesture) return;
+  const start = gesture;
+  gesture = null;
+
+  if (game.state !== "playing" || game.paused) return;
+
+  const dx = x - start.x;
+  const dy = y - start.y;
+  const dt = performance.now() - start.t;
+  const pointerType = type || start.type;
   const swipe = swipeThreshold();
   const absX = Math.abs(dx);
   const absY = Math.abs(dy);
 
   // Prefer clear horizontal intent; ignore mushy diagonals
-  if (absX > swipe && absX > absY * 1.2) {
+  if (absX > swipe && absX > absY * 1.15) {
     game.shiftLane(dx < 0 ? -1 : 1);
     return;
   }
@@ -813,18 +926,136 @@ function onPlayPointerUp(e) {
   }
 
   // Touch / pen: tap / light flick = morph
-  if (absX < swipe * 0.75 && absY < swipe * 0.75 && dt < 420) {
+  if (absX < swipe * 0.85 && absY < swipe * 0.85 && dt < 480) {
     game.morph();
   }
 }
 
+function onPlayPointerDown(e) {
+  if (performance.now() < ignorePointerUntil) return;
+  if (game.state !== "playing") return;
+  if (game.paused) {
+    // Tap anywhere (non-UI) resumes — mobile-friendly
+    if (!isUiTarget(e.target)) resumeGame();
+    return;
+  }
+  if (isUiTarget(e.target)) return;
+  if (e.isPrimary === false) return;
+  // Mouse on fine pointers: only left button; avoid accidental lane drags from hover tools
+  if (e.pointerType === "mouse" && e.button !== 0) return;
+  // Touch is handled by touch* listeners on Apple / coarse devices (avoids iOS pointercancel)
+  if (e.pointerType === "touch" && (appleTouch || prefersTouchControls())) return;
+
+  beginGesture(e.clientX, e.clientY, e.pointerId, e.pointerType || "unknown");
+  try {
+    e.preventDefault();
+  } catch {
+    /* ignore */
+  }
+  // setPointerCapture is flaky on iOS — desktop only
+  if (e.pointerType === "mouse" || e.pointerType === "pen") {
+    try {
+      e.currentTarget.setPointerCapture?.(e.pointerId);
+    } catch {
+      /* ignore */
+    }
+  }
+}
+
+function onPlayPointerMove(e) {
+  if (!gesture) return;
+  if (gesture.id != null && e.pointerId !== gesture.id) return;
+  moveGesture(e.clientX, e.clientY, e.pointerId);
+}
+
+function onPlayPointerUp(e) {
+  if (!gesture) return;
+  if (gesture.id != null && e.pointerId !== gesture.id) return;
+  try {
+    e.currentTarget.releasePointerCapture?.(e.pointerId);
+  } catch {
+    /* ignore */
+  }
+  finishGesture(e.clientX, e.clientY, e.pointerType || gesture.type);
+}
+
+function onPlayPointerCancel(e) {
+  if (!gesture) return;
+  if (gesture.id != null && e.pointerId !== gesture.id) return;
+  // iOS often cancels mid-swipe — still resolve using last tracked point
+  finishGesture(gesture.lastX, gesture.lastY, gesture.type);
+}
+
 const playSurface = document.getElementById("app") || els.canvas;
-playSurface.addEventListener("pointerdown", onPlayPointerDown, { passive: true });
+
+playSurface.addEventListener("pointerdown", onPlayPointerDown, { passive: false });
+playSurface.addEventListener("pointermove", onPlayPointerMove, { passive: true });
 playSurface.addEventListener("pointerup", onPlayPointerUp, { passive: true });
+playSurface.addEventListener("pointercancel", onPlayPointerCancel, { passive: true });
+
+function touchFromEvent(e) {
+  return e.changedTouches?.[0] || e.touches?.[0] || null;
+}
+
 playSurface.addEventListener(
-  "pointercancel",
+  "touchstart",
+  (e) => {
+    if (game.state !== "playing") return;
+    if (game.paused) {
+      if (!isUiTarget(e.target)) {
+        e.preventDefault();
+        resumeGame();
+      }
+      return;
+    }
+    if (isUiTarget(e.target)) return;
+    const t = touchFromEvent(e);
+    if (!t) return;
+    // Critical on iOS: preventDefault stops scroll + pointercancel killing the gesture
+    e.preventDefault();
+    ignorePointerUntil = performance.now() + 700;
+    game.audio.resume();
+    beginGesture(t.clientX, t.clientY, t.identifier, "touch");
+  },
+  { passive: false }
+);
+
+playSurface.addEventListener(
+  "touchmove",
+  (e) => {
+    if (!gesture || game.state !== "playing") return;
+    if (isUiTarget(e.target)) return;
+    const t = touchFromEvent(e);
+    if (!t) return;
+    if (gesture.id != null && t.identifier !== gesture.id) return;
+    e.preventDefault();
+    moveGesture(t.clientX, t.clientY, t.identifier);
+  },
+  { passive: false }
+);
+
+playSurface.addEventListener(
+  "touchend",
+  (e) => {
+    if (!gesture) return;
+    const t = touchFromEvent(e);
+    if (!t) {
+      finishGesture(gesture.lastX, gesture.lastY, "touch");
+      return;
+    }
+    if (gesture.id != null && t.identifier !== gesture.id) return;
+    e.preventDefault();
+    ignorePointerUntil = performance.now() + 700;
+    finishGesture(t.clientX, t.clientY, "touch");
+  },
+  { passive: false }
+);
+
+playSurface.addEventListener(
+  "touchcancel",
   () => {
-    touchStart = null;
+    if (!gesture) return;
+    finishGesture(gesture.lastX, gesture.lastY, "touch");
   },
   { passive: true }
 );
@@ -843,6 +1074,15 @@ document.addEventListener("contextmenu", (e) => {
   if (game.state === "playing") e.preventDefault();
 });
 
+// Unlock Web Audio on first user gesture (Safari requires this in the same tick)
+function unlockAudioOnce() {
+  game.audio.resume();
+  window.removeEventListener("touchstart", unlockAudioOnce, true);
+  window.removeEventListener("pointerdown", unlockAudioOnce, true);
+}
+window.addEventListener("touchstart", unlockAudioOnce, { capture: true, passive: true });
+window.addEventListener("pointerdown", unlockAudioOnce, { capture: true, passive: true });
+
 document.addEventListener("visibilitychange", () => {
   if (document.hidden) {
     if (game.state === "playing" && !game.paused) {
@@ -852,23 +1092,36 @@ document.addEventListener("visibilitychange", () => {
   // Do not auto-resume — player taps Continue (safer mid-obstacle on phones)
 });
 
+// iOS Safari: pagehide when jumping to app switcher / suspending the tab
+window.addEventListener("pagehide", () => {
+  if (game.state === "playing" && !game.paused) {
+    pauseGame({ fromSystem: true });
+  }
+});
+
 function onViewportChange() {
-  syncControlsHint();
-  syncTouchPadVisibility();
-  fitBrand();
-  game.resize();
-  measureDock();
+  clearTimeout(viewportTimer);
+  viewportTimer = setTimeout(() => {
+    syncControlsHint();
+    syncTouchPadVisibility();
+    fitBrand();
+    game.resize();
+    measureDock();
+  }, appleTouch ? 80 : 0);
 }
 
 window.addEventListener("resize", onViewportChange);
 window.addEventListener("orientationchange", () => {
-  setTimeout(onViewportChange, 120);
-  setTimeout(onViewportChange, 360);
+  setTimeout(onViewportChange, 150);
+  setTimeout(onViewportChange, 450);
 });
 
 if (window.visualViewport) {
   window.visualViewport.addEventListener("resize", onViewportChange);
-  window.visualViewport.addEventListener("scroll", onViewportChange);
+  // Avoid scroll thrash on iOS URL-bar show/hide — resize is enough
+  if (!appleTouch) {
+    window.visualViewport.addEventListener("scroll", onViewportChange);
+  }
 }
 
 coarseMq.addEventListener?.("change", onViewportChange);
@@ -897,6 +1150,7 @@ setSponsorUI(runSponsor);
 refreshTitleStats();
 updateFormPips("slim");
 syncShareLinks({ score: storage.get().best, distance: 0, combo: 1, isBest: false });
+if (appleTouch) document.body.classList.add("is-ios");
 goTitle();
 
 async function finishBoot() {
