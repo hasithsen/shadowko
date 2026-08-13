@@ -20,6 +20,7 @@ const els = {
   playBtn: $("playBtn"),
   helpBtn: $("helpBtn"),
   howPlayBtn: $("howPlayBtn"),
+  howPlayLabel: $("howPlayLabel"),
   howBackBtn: $("howBackBtn"),
   howKicker: $("howKicker"),
   howTitle: $("howTitle"),
@@ -35,6 +36,7 @@ const els = {
   pauseBtn: $("pauseBtn"),
   pauseOverlay: $("pauseOverlay"),
   resumeBtn: $("resumeBtn"),
+  pauseHelpBtn: $("pauseHelpBtn"),
   pauseMenuBtn: $("pauseMenuBtn"),
   pauseHint: $("pauseHint"),
   touchPad: $("touchPad"),
@@ -362,9 +364,9 @@ function configureHowScreen({ fromMenu = false } = {}) {
   howFromMenu = !!fromMenu;
   if (els.howKicker) els.howKicker.textContent = fromMenu ? "Controls" : "First run";
   if (els.howTitle) els.howTitle.textContent = fromMenu ? "How to play" : "How to survive";
-  if (els.howPlayBtn) {
-    els.howPlayBtn.textContent = fromMenu ? "Enter the night" : "I'm ready";
-  }
+  const playLabel = fromMenu ? "Enter the night" : "I'm ready";
+  if (els.howPlayLabel) els.howPlayLabel.textContent = playLabel;
+  else if (els.howPlayBtn) els.howPlayBtn.textContent = playLabel;
   setHidden(els.howBackBtn, !fromMenu);
 }
 
@@ -372,13 +374,32 @@ function openHowFromMenu() {
   configureHowScreen({ fromMenu: true });
   setScreen("how");
   announce("How to play. Review controls, then play or go back.");
-  requestAnimationFrame(() => els.howBackBtn?.focus({ preventScroll: true }));
+  // Keep primary CTA focused (setScreen already targets howPlayBtn)
 }
 
 function openHowFirstRun() {
   configureHowScreen({ fromMenu: false });
   setScreen("how");
   announce("How to survive. Review controls, then press I'm ready.");
+}
+
+/** Leave an in-progress run and open help (from pause). */
+function exitRunToHow() {
+  userPaused = false;
+  game.setPaused(false);
+  setHidden(els.pauseOverlay, true);
+  setHidden(els.hud, true);
+  setHidden(els.sponsorChip, true);
+  setHidden(els.toast, true);
+  setHidden(els.touchPad, true);
+  document.body.classList.remove("has-touch-pad");
+  if (els.pauseBtn) {
+    els.pauseBtn.hidden = true;
+    els.pauseBtn.toggleAttribute("hidden", true);
+  }
+  game.state = "idle";
+  measureDock();
+  openHowFromMenu();
 }
 
 /** Scale the wide Syne wordmark so it never clips the viewport. */
@@ -615,6 +636,10 @@ els.resumeBtn?.addEventListener("click", () => {
 
 els.pauseMenuBtn?.addEventListener("click", () => {
   goTitle();
+});
+
+els.pauseHelpBtn?.addEventListener("click", () => {
+  exitRunToHow();
 });
 
 els.shareBtn.addEventListener("click", () => {

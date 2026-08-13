@@ -100,6 +100,7 @@
         <span class="btn-label">Continue</span>
         <span class="btn-kbd" aria-hidden="true">Space</span>
       </button>
+      <button id="pauseHelpBtn" class="btn btn-ghost" type="button">How to play</button>
       <button id="pauseMenuBtn" class="btn btn-ghost" type="button">Menu</button>
       <p class="pause-hint" id="pauseHint">Game paused</p>
     </div>
@@ -132,7 +133,7 @@
             <span class="btn-label">Enter the night</span>
             <span class="btn-kbd" aria-hidden="true">Space</span>
           </button>
-          <button id="helpBtn" class="btn btn-ghost btn-help" type="button">
+          <button id="helpBtn" class="btn btn-ghost btn-help" type="button" aria-haspopup="dialog">
             <span class="btn-label">How to play</span>
           </button>
           <p class="hint" id="controlsHint">Tap to morph · Swipe or ← → for lanes</p>
@@ -206,7 +207,9 @@
           </li>
         </ol>
         <div class="how-actions">
-          <button id="howPlayBtn" class="btn btn-primary btn-block" type="button">I'm ready</button>
+          <button id="howPlayBtn" class="btn btn-primary btn-block" type="button">
+            <span class="btn-label" id="howPlayLabel">I'm ready</span>
+          </button>
           <button id="howBackBtn" class="btn btn-ghost btn-block is-hidden" type="button" hidden>Back</button>
         </div>
       </div>
