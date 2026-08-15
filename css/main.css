@@ -894,6 +894,7 @@ body.is-ready .boot {
 .how-panel {
   display: flex;
   flex-direction: column;
+  overflow: hidden; /* list scrolls; CTA stays clear below */
   padding-bottom: 0;
 }
 
@@ -920,22 +921,30 @@ body.is-ready .boot {
 .how-actions {
   display: grid;
   gap: 0.55rem;
-  position: sticky;
-  bottom: 0;
-  margin-top: auto;
+  position: relative;
+  flex: 0 0 auto;
+  margin-top: 0;
   padding: 0.85rem 0 1.25rem;
-  background: linear-gradient(180deg, transparent 0%, rgba(16, 19, 26, 0.92) 28%, var(--bg-elev) 55%);
+  background: var(--bg-elev);
+  border-top: 1px solid var(--line);
   z-index: 2;
+  /* Extra room so the primary CTA never covers the last help card */
+  box-shadow: 0 -12px 20px -12px rgba(0, 0, 0, 0.35);
 }
 
 .how-grid {
   list-style: none;
   display: grid;
   gap: 0.65rem;
-  margin-bottom: 0.35rem;
+  margin-bottom: 0;
+  padding-bottom: 0.35rem;
   text-align: left;
   flex: 1 1 auto;
   min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
 }
 
 .how-card {
@@ -1171,10 +1180,13 @@ body.is-ready .boot {
   gap: 0.55rem;
   position: sticky;
   bottom: 0;
+  flex: 0 0 auto;
   margin-top: 0.25rem;
   padding: 0.85rem 0 1.25rem;
-  background: linear-gradient(180deg, transparent 0%, rgba(16, 19, 26, 0.92) 28%, var(--bg-elev) 55%);
+  background: var(--bg-elev);
+  border-top: 1px solid var(--line);
   z-index: 2;
+  box-shadow: 0 -12px 20px -12px rgba(0, 0, 0, 0.35);
 }
 
 .over-actions-row {
